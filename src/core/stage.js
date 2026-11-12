@@ -42,12 +42,38 @@ export function createStage(canvas) {
     nodes: new Map([['model', model]]),
     /** Kugel um das geladene Modell, für Kameraabstand und Hilfslinien */
     bounds: new THREE.Sphere(new THREE.Vector3(), 1),
+    /** Kameraausschnitt des aktuellen Breakpoints */
+    framing: { zoom: 1, shiftX: 0, shiftY: 0 },
   };
 }
 
 export function resizeStage(stage, width, height) {
   stage.renderer.setSize(width, height, false);
   stage.camera.aspect = width / Math.max(1, height);
+  applyFraming(stage, stage.framing);
+}
+
+/**
+ * Kameraausschnitt setzen: Zoom und Verschiebung des Bildes in Prozent des Fensters.
+ * Position und Blickziel der Kamera bleiben unverändert, die Timeline rechnet also für
+ * alle Breakpoints mit denselben Werten.
+ */
+export function applyFraming(stage, framing) {
+  stage.framing = framing;
+  const size = stage.renderer.getSize(new THREE.Vector2());
+  stage.camera.zoom = framing.zoom;
+  if (framing.shiftX || framing.shiftY) {
+    stage.camera.setViewOffset(
+      size.x,
+      size.y,
+      (-framing.shiftX / 100) * size.x,
+      (-framing.shiftY / 100) * size.y,
+      size.x,
+      size.y,
+    );
+  } else {
+    stage.camera.clearViewOffset();
+  }
   stage.camera.updateProjectionMatrix();
 }
 

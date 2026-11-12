@@ -2,7 +2,7 @@
 // Die Dateien unter src/core werden unverändert mitgegeben: Der Export rechnet deshalb
 // mit genau dem Code, mit dem auch die Editor-Vorschau rechnet.
 
-import { escapeHtml, renderCss, renderSections } from './page.js';
+import { escapeHtml, renderCss, renderFreeLayer, renderSections, usedImages } from './page.js';
 
 const VERSIONS = { three: '^0.187.0', gsap: '^3.15.1', vite: '^8.3.8', astro: '^7.4.11' };
 
@@ -27,8 +27,10 @@ function sceneNote() {
 - \`scene/stage.js\` baut die Three.js-Szene auf und überträgt den Zustand.
 - \`scene/player.js\` verbindet alles über GSAP ScrollTrigger mit der Seite.
 
-Texte und Buttons stehen als normales HTML in der Seite und lassen sich dort direkt ändern.
-Ein Abschnitt wird über \`data-section="<ID>"\` mit der Timeline verbunden.
+Texte, Karten und Buttons stehen als normales HTML in der Seite und lassen sich dort direkt ändern.
+Ein Abschnitt wird über \`data-section="<ID>"\` mit der Timeline verbunden. Animierte Komponenten
+tragen \`data-anim\` sowie \`data-in\` und \`data-out\` (Bereich im Abschnitt, 0 bis 1).
+Breakpoints sind Container Queries im Stylesheet (Tablet bis 1024 px, Mobile bis 640 px).
 `;
 }
 
@@ -45,8 +47,9 @@ function slug(name) {
  * @param {import('../core/types').Project} project
  * @param {'vanilla' | 'astro'} target
  * @param {Record<string, string>} coreSources Dateiname -> Quelltext der Dateien aus src/core
- * @returns {{ files: Record<string, string>, modelPath: string | null }}
+ * @returns {{ files: Record<string, string>, modelPath: string | null, imagePaths: Record<string, string> }}
  *   files: Pfad -> Textinhalt. modelPath: Pfad, unter dem die Modelldatei abzulegen ist.
+ *   imagePaths: Bildname -> Pfad, unter dem das Bild abzulegen ist.
  */
 export function buildExport(project, target, coreSources) {
   const modelFile = project.model.file;
@@ -54,6 +57,12 @@ export function buildExport(project, target, coreSources) {
   const title = escapeHtml(project.name);
   const files = {};
   const sceneDir = 'src/scene/';
+  const imagePaths = Object.fromEntries(usedImages(project).map((name) => [name, `public/images/${name}`]));
+  const freeLayer = renderFreeLayer(project, { indent: '    ' });
+  const body = `    <canvas id="stage"${modelAttr} aria-hidden="true"></canvas>
+    <main class="page">
+${renderSections(project, { indent: '      ' })}
+    </main>${freeLayer ? '\n' + freeLayer : ''}`;
 
   for (const [name, source] of Object.entries(coreSources)) files[sceneDir + name] = source;
   files['src/project.json'] = JSON.stringify(project, null, 2) + '\n';
@@ -68,11 +77,8 @@ export function buildExport(project, target, coreSources) {
     <title>${title}</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
-  <body>
-    <canvas id="stage"${modelAttr} aria-hidden="true"></canvas>
-    <main class="page">
-${renderSections(project, '      ')}
-    </main>
+  <body class="site">
+${body}
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>
@@ -118,9 +124,9 @@ npm run build
 Den Inhalt des Ordners \`dist\` auf den Webserver laden. Es wird kein Editor und kein Tauri benötigt.
 
 ${sceneNote().replace(/`project\.json`/, '`src/project.json`').replace(/`scene\//g, '`src/scene/')}
-Die Seite selbst liegt in \`index.html\`, die Gestaltung in \`styles.css\`, das Modell in \`public/model\`.
+Die Seite selbst liegt in \`index.html\`, die Gestaltung in \`styles.css\`, das Modell in \`public/model\`, Bilder in \`public/images\`.
 `;
-    return { files, modelPath: modelFile ? `public/model/${modelFile}` : null };
+    return { files, modelPath: modelFile ? `public/model/${modelFile}` : null, imagePaths };
   }
 
   // ---------- Astro ----------
@@ -137,11 +143,8 @@ import '../styles/page.css';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title}</title>
   </head>
-  <body>
-    <canvas id="stage"${modelAttr} aria-hidden="true"></canvas>
-    <main class="page">
-${renderSections(project, '      ')}
-    </main>
+  <body class="site">
+${body}
     <script>
       import '../main.js';
     </script>
@@ -187,7 +190,7 @@ Den Inhalt des Ordners \`dist\` auf den Webserver laden. Es wird kein Editor und
 
 ${sceneNote().replace(/`project\.json`/, '`src/project.json`').replace(/`scene\//g, '`src/scene/')}
 Die Seite selbst liegt in \`src/pages/index.astro\`, die Gestaltung in \`src/styles/page.css\`,
-das Modell in \`public/model\`.
+das Modell in \`public/model\`, Bilder in \`public/images\`.
 `;
-  return { files, modelPath: modelFile ? `public/model/${modelFile}` : null };
+  return { files, modelPath: modelFile ? `public/model/${modelFile}` : null, imagePaths };
 }

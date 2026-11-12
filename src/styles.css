@@ -238,8 +238,8 @@ small {
   margin-bottom: 8px;
 }
 
-h3,
-h4 {
+.panel h3,
+.panel h4 {
   margin: 0;
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -247,8 +247,10 @@ h4 {
   color: var(--muted);
 }
 
-h4 {
-  margin: 12px 0 6px;
+.panel h4 {
+  margin: 14px 0 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
 
 .list {
@@ -422,50 +424,102 @@ h4 {
   height: 100%;
 }
 
-.viewport-content {
+/* Gerätefläche: Canvas und Seite haben dieselbe Größe wie später im Browserfenster. */
+.device {
+  position: relative;
+  height: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.device.tablet,
+.device.mobile {
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/* Die Seite über dem Canvas. Ihr CSS kommt aus demselben Generator wie beim Export. */
+.page-frame {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  padding: 8% 6%;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
   pointer-events: none;
-  color: #f4f4f2;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
 }
 
-.viewport-content.align-center {
-  justify-content: center;
-  text-align: center;
+.page-frame.site {
+  background: transparent;
 }
 
-.viewport-content.align-right {
-  justify-content: flex-end;
+.page-frame .page {
+  height: 100%;
 }
 
-.viewport-content > div {
-  max-width: 38%;
+.page-frame .section {
+  min-height: 100% !important;
 }
 
-.viewport-content h2 {
-  margin: 0 0 0.4em;
-  font-size: clamp(20px, 2.6vw, 38px);
-  line-height: 1.1;
+.page-frame .free-layer {
+  position: absolute;
 }
 
-.viewport-content p {
-  margin: 0 0 1em;
-  opacity: 0.75;
-  white-space: pre-line;
+.page-frame .c {
+  pointer-events: auto;
+  cursor: default;
+  user-select: none;
 }
 
-.content-button {
-  display: inline-block;
-  padding: 0.6em 1.2em;
-  border-radius: 999px;
-  background: #f4f4f2;
-  color: #16181c;
-  font-weight: 600;
-  text-shadow: none;
+.page-frame .free-layer > .c,
+.page-frame .free-layer > .c * {
+  cursor: move;
+}
+
+.page-frame .is-selected,
+.page-frame .is-selected .w {
+  opacity: 1 !important;
+  transform: none !important;
+  visibility: visible !important;
+}
+
+.page-frame .image.placeholder {
+  display: grid;
+  place-items: center;
+  width: 16rem;
+  max-width: 100%;
+  aspect-ratio: 16 / 10;
+  border: 1px dashed currentColor;
+  opacity: 0.7;
+}
+
+.page-frame.dragging .section-inner {
+  min-width: min(30rem, 90%);
+  min-height: 30%;
+  outline: 2px dashed var(--accent);
+  outline-offset: 12px;
+}
+
+.selection-box {
+  position: absolute;
+  display: none;
+  border: 1.5px solid var(--accent);
+  pointer-events: none;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 50%;
+  right: -5px;
+  width: 9px;
+  height: 22px;
+  translate: 0 -50%;
+  border-radius: 3px;
+  background: var(--accent);
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
+.tool-gap {
+  width: 12px;
 }
 
 .viewport-empty {
@@ -756,4 +810,103 @@ button.merken {
   border-radius: 8px;
   background: var(--raised);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- Komponenten: Bibliothek, Ebenen, Inspektor ---------- */
+
+.library {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.library button {
+  display: grid;
+  gap: 1px;
+  padding: 7px 9px;
+  text-align: left;
+  cursor: grab;
+}
+
+.library small {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.badge.quiet {
+  background: var(--raised);
+  color: var(--muted);
+}
+
+.inherit-label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.inherit-label em {
+  margin-left: auto;
+  font-size: 11px;
+  font-style: normal;
+  opacity: 0.75;
+}
+
+.inherit-label em.own {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.inherit-label button {
+  padding: 0 5px;
+  line-height: 1.4;
+}
+
+.vector.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.row.tight {
+  gap: 2px;
+}
+
+.row.tight button {
+  padding: 2px 8px;
+}
+
+.segmented button {
+  flex: 1;
+}
+
+.check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.template-note {
+  margin: 0 0 10px;
+  padding: 7px 9px;
+  border-radius: 5px;
+  background: rgba(242, 163, 58, 0.12);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.anim-range {
+  position: absolute;
+  bottom: 3px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.anim-range.out {
+  opacity: 0.45;
+}
+
+.field input[type='checkbox'] {
+  justify-self: start;
 }

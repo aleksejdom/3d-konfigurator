@@ -6,7 +6,8 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { evaluate } from './timeline.js';
 import { measureSections, scrollToPos } from './scroll.js';
-import { applyState, createStage, loadModel, renderStage, resizeStage, setBackground } from './stage.js';
+import { bindComponents, breakpointFor, resolveFraming } from './components.js';
+import { applyFraming, applyState, createStage, loadModel, renderStage, resizeStage, setBackground } from './stage.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -32,6 +33,7 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
   setBackground(stage, project.settings.background);
 
   const sectionElements = document.querySelectorAll('[data-section]');
+  const updateComponents = bindComponents(document, project.sections.map((section) => section.id));
   let layout = [];
   let targetPos = 0;
   let currentPos = 0;
@@ -43,6 +45,7 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
   };
 
   const measure = () => {
+    applyFraming(stage, resolveFraming(project, breakpointFor(canvas.clientWidth)));
     resizeStage(stage, canvas.clientWidth, canvas.clientHeight);
     layout = measureSections(sectionElements);
     readScroll();
@@ -69,6 +72,7 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     if (needsRender) {
       needsRender = false;
       applyState(stage, evaluate(project, currentPos));
+      updateComponents(currentPos);
       renderStage(stage);
     }
     requestAnimationFrame(frame);

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import type { Keyframe, Project } from '../core/types';
+import { locate } from './components';
 import { posLabel, propLabel } from './labels';
 import { keyframePos, moveKeyframe, setPos, useEditor } from './store';
 
@@ -21,7 +22,11 @@ export function Timeline() {
   const project = useEditor((s) => s.project);
   const pos = useEditor((s) => s.pos);
   const selectedKeyframe = useEditor((s) => s.selectedKeyframe);
+  const selectedComponent = useEditor((s) => s.selectedComponent);
   const trackRef = useRef<HTMLDivElement>(null);
+  // Animationsbereiche der ausgewählten Komponente in ihrem Abschnitt anzeigen.
+  const located = selectedComponent ? locate(project, selectedComponent) : null;
+  const animation = located && located.node.animation.type !== 'none' ? located.node.animation : null;
   const { heights, total, starts } = layout(project);
   const count = project.sections.length;
 
@@ -103,6 +108,22 @@ export function Timeline() {
         {project.sections.map((section, i) => (
           <div className="timeline-section" key={section.id} style={{ flexGrow: heights[i] }}>
             <span className="timeline-section-name">{section.name}</span>
+            {animation && located!.section.id === section.id && (
+              <>
+                <i
+                  className="anim-range"
+                  title="Komponente erscheint"
+                  style={{ left: `${animation.in[0] * 100}%`, width: `${Math.max(0.5, (animation.in[1] - animation.in[0]) * 100)}%` }}
+                />
+                {animation.out && (
+                  <i
+                    className="anim-range out"
+                    title="Komponente wird ausgeblendet"
+                    style={{ left: `${animation.out[0] * 100}%`, width: `${Math.max(0.5, (animation.out[1] - animation.out[0]) * 100)}%` }}
+                  />
+                )}
+              </>
+            )}
             {project.keyframes
               .filter((k) => k.sectionId === section.id)
               .map((keyframe) => (

@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { splitPos } from '../core/timeline.js';
 import { defaultBase, readProp } from '../core/stage.js';
 import { buildExport } from '../export/exporter.js';
-import type { Keyframe, Project, Scope, Value } from '../core/types';
+import { usedImages } from '../export/page.js';
+import type { Breakpoint, Keyframe, Project, Scope, Value } from '../core/types';
 import { createProject, migrateProject, uid } from './project';
 import {
   canPickDirectory,
@@ -43,6 +44,14 @@ interface EditorState {
   selectedNode: string | null;
   selectedKeyframe: string | null;
   selectedSection: string | null;
+  /** Ausgewählte HTML-Komponente. Kinder einer Instanz: "<Instanz>--<Vorlagen-Element>" */
+  selectedComponent: string | null;
+  /** Breakpoint, für den der Viewport anzeigt und Gestaltungswerte gespeichert werden */
+  breakpoint: Breakpoint;
+  /** Bilder des Projekts: Dateiname -> Daten und Adresse für die Anzeige */
+  assets: Record<string, { data: ArrayBuffer; url: string }>;
+  /** Wird gerade eine Komponente aus der Bibliothek gezogen? */
+  dragging: boolean;
   modelBuffer: ArrayBuffer | null;
   /** Zählt hoch, sobald ein Modell geladen wurde */
   modelVersion: number;
@@ -67,6 +76,10 @@ export const useEditor = create<EditorState>(() => ({
   selectedNode: null,
   selectedKeyframe: null,
   selectedSection: initialProject.sections[0].id,
+  selectedComponent: null,
+  breakpoint: 'desktop',
+  assets: {},
+  dragging: false,
   modelBuffer: null,
   modelVersion: 0,
   dir: null,
@@ -110,7 +123,10 @@ export function update(recipe: (project: Project) => void, key?: string) {
 
 function fixSelection(project: Project) {
   const state = get();
+  const componentRoot = state.selectedComponent?.split('--')[0];
   set({
+    selectedComponent:
+      componentRoot && JSON.stringify(project.sections).includes(`"id":"${componentRoot}"`) ? state.selectedComponent : null,
     selectedKeyframe: project.keyframes.some((k) => k.id === state.selectedKeyframe) ? state.selectedKeyframe : null,
     selectedSection: project.sections.some((s) => s.id === state.selectedSection)
       ? state.selectedSection
@@ -141,7 +157,14 @@ export function setPos(pos: number) {
   const count = get().project.sections.length;
   const clamped = Math.min(count, Math.max(0, pos));
   const { index } = splitPos(get().project, clamped);
-  set({ pos: clamped, draft: {}, selectedSection: get().project.sections[index]?.id ?? null });
+  const sectionId = get().project.sections[index]?.id ?? null;
+  set({
+    pos: clamped,
+    draft: {},
+    selectedSection: sectionId,
+    // Die Auswahl gehört zum sichtbaren Abschnitt.
+    selectedComponent: sectionId === get().selectedSection ? get().selectedComponent : null,
+  });
 }
 
 export function setDraft(patch: StateMap) {
@@ -219,7 +242,7 @@ async function applyModel(name: string, data: ArrayBuffer) {
 }
 
 export async function importModel() {
-  const file = await pickFile(['glb', 'gltf']);
+  const file = await pickFile(['glb', 'gltf'], '3D-Modell');
   if (!file) return;
   try {
     await applyModel(file.name, file.data);
@@ -233,15 +256,40 @@ export async function loadSampleModel() {
   await applyModel('sample.glb', await response.arrayBuffer());
 }
 
+// ---------- Bilder ----------
+
+function addAsset(name: string, data: ArrayBuffer) {
+  const old = get().assets[name];
+  if (old) URL.revokeObjectURL(old.url);
+  const type = name.toLowerCase().endsWith('.svg') ? 'image/svg+xml' : '';
+  set({ assets: { ...get().assets, [name]: { data, url: URL.createObjectURL(new Blob([data], { type })) } } });
+}
+
+/** Bild auswählen und ins Projekt aufnehmen. Liefert den Dateinamen. */
+export async function importImage(): Promise<string | null> {
+  const file = await pickFile(['png', 'jpg', 'jpeg', 'webp', 'avif', 'svg', 'gif'], 'Bild');
+  if (!file) return null;
+  addAsset(file.name, file.data);
+  return file.name;
+}
+
+function clearAssets() {
+  Object.values(get().assets).forEach((asset) => URL.revokeObjectURL(asset.url));
+  set({ assets: {} });
+}
+
 // ---------- Speichern, Öffnen, Projektstände ----------
 
 function projectFiles(): FileMap {
-  const { project, snapshots, modelBuffer } = get();
+  const { project, snapshots, modelBuffer, assets } = get();
   const files: FileMap = {
     'project.json': JSON.stringify(project, null, 2) + '\n',
     'snapshots.json': JSON.stringify(snapshots, null, 2) + '\n',
   };
   if (project.model.file && modelBuffer) files['assets/' + project.model.file] = new Uint8Array(modelBuffer);
+  for (const name of usedImages(project)) {
+    if (assets[name]) files['assets/' + name] = new Uint8Array(assets[name].data);
+  }
   return files;
 }
 
@@ -281,6 +329,12 @@ export async function openProject() {
     if (project.model.file && !model) notify(`Die Modelldatei assets/${project.model.file} fehlt.`);
     if (model) await loadIntoStage(model);
     else clearStageModel();
+    clearAssets();
+    for (const name of usedImages(project)) {
+      const image = await readBinary(dir, 'assets/' + name);
+      if (image) addAsset(name, image);
+    }
+    const snapshots: Snapshot[] = snapshotText ? JSON.parse(snapshotText) : [];
     set({
       project,
       past: [],
@@ -294,7 +348,8 @@ export async function openProject() {
       modelVersion: get().modelVersion + 1,
       dir,
       unsaved: false,
-      snapshots: snapshotText ? JSON.parse(snapshotText) : [],
+      snapshots: snapshots.map((snapshot) => ({ ...snapshot, project: migrateProject(snapshot.project) })),
+      selectedComponent: null,
       measurement: null,
     });
   } catch (error) {
@@ -305,7 +360,9 @@ export async function openProject() {
 export function newProject() {
   const project = createProject();
   clearStageModel();
+  clearAssets();
   set({
+    selectedComponent: null,
     project,
     past: [],
     future: [],
@@ -349,10 +406,13 @@ const coreModules = import.meta.glob('../core/*', { query: '?raw', import: 'defa
 const coreSources = Object.fromEntries(Object.entries(coreModules).map(([path, source]) => [path.split('/').pop()!, source]));
 
 export async function exportProject(target: 'vanilla' | 'astro') {
-  const { project, modelBuffer } = get();
-  const { files, modelPath } = buildExport(project, target, coreSources);
+  const { project, modelBuffer, assets } = get();
+  const { files, modelPath, imagePaths } = buildExport(project, target, coreSources);
   const all: FileMap = { ...files };
   if (modelPath && modelBuffer) all[modelPath] = new Uint8Array(modelBuffer);
+  for (const [name, path] of Object.entries(imagePaths)) {
+    if (assets[name]) all[path] = new Uint8Array(assets[name].data);
+  }
 
   if (!canPickDirectory) {
     downloadZip(`${project.name}-${target}`, all);

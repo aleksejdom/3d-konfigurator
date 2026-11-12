@@ -36,7 +36,7 @@ unter „Actions“ den Workflow „Windows-Installer“ starten und das Artefak
 ## Prüfen
 
 ```
-npm test                # Timeline- und Scroll-Logik
+npm test                # Timeline, Scrollzuordnung, Komponenten, Vorlagen, Breakpoints
 npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
 ```
 
@@ -48,8 +48,10 @@ npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
    ob der Wert nur in diesem Abschnitt gilt oder in die Folgeabschnitte übernommen wird.
 4. Timeline ziehen oder Mausrad über der Timeline: Die Übergänge laufen vor und zurück.
 5. Punkte in der Timeline anklicken, verschieben und rechts bearbeiten (Geltungsbereich, Easing, Übergangslänge).
-6. **Vorschau** zeigt die echte Seite und misst die Zeit bis zum ersten sichtbaren Render.
-7. **Exportieren** schreibt ein Astro- oder ein HTML/CSS/JavaScript-Projekt in einen Ordner.
+6. Aus der Komponentenbibliothek Headlines, Texte, Bilder, Buttons, Karten und Infoboxen in den Viewport ziehen.
+   Über „Desktop / Tablet / Mobile“ am Viewport passt du Gestaltung und Kameraausschnitt pro Breakpoint an.
+7. **Vorschau** zeigt die echte Seite und misst die Zeit bis zum ersten sichtbaren Render.
+8. **Exportieren** schreibt ein Astro- oder ein HTML/CSS/JavaScript-Projekt in einen Ordner.
 
 ## Aufbau
 
@@ -68,7 +70,7 @@ denselben Zustand.
 ## Projektordner
 
 ```
-project.json     Abschnitte, gespeicherte Punkte, Ausgangswerte, Budgets (formatVersion 1)
+project.json     Abschnitte, Komponenten, Vorlagen, gespeicherte Punkte, Budgets (formatVersion 2)
 snapshots.json   benannte Projektstände
-assets/          Modelldatei
+assets/          Modelldatei und Bilder
 ```

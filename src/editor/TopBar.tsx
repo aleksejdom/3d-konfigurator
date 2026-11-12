@@ -36,7 +36,7 @@ const seconds = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maxim
 function PreviewDialog({ onClose }: { onClose: () => void }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [profileId, setProfileId] = useState('4g');
-  const [device, setDevice] = useState('desktop');
+  const [device, setDevice] = useState<string>(() => useEditor.getState().breakpoint);
   const [run, setRun] = useState(0);
   const [result, setResult] = useState<string | null>(null);
   const profile = PROFILES.find((p) => p.id === profileId)!;
@@ -47,8 +47,9 @@ function PreviewDialog({ onClose }: { onClose: () => void }) {
       const frame = frameRef.current;
       if (!frame || event.source !== frame.contentWindow) return;
       if (event.data?.type === 'ready') {
-        const { project, modelBuffer } = useEditor.getState();
-        frame.contentWindow!.postMessage({ type: 'load', project, model: modelBuffer, throttle: profile.throttle }, '*');
+        const { project, modelBuffer, assets } = useEditor.getState();
+        const images = Object.fromEntries(Object.entries(assets).map(([name, asset]) => [name, asset.data]));
+        frame.contentWindow!.postMessage({ type: 'load', project, model: modelBuffer, images, throttle: profile.throttle }, '*');
       }
       if (event.data?.type === 'first-render') {
         setResult(`${seconds.format(event.data.ms / 1000)} s bis zum ersten sichtbaren Render · ${profile.label}`);

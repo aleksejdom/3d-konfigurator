@@ -1,70 +1,14 @@
 import { useMemo } from 'react';
 import { EASINGS } from '../core/easing.js';
 import { DEFAULT_BLEND } from '../core/timeline.js';
-import type { Budget, KeyValue, PageElement, Scope, Section, Value, Vec3 } from '../core/types';
+import type { Breakpoint, Budget, Framing, KeyValue, Scope, Section, Value, Vec3 } from '../core/types';
+import { BREAKPOINT_LABELS, Field, InheritRow, NumberInput, OptionalNumber, VectorField } from './fields';
+import { ComponentInspector } from './Inspector';
 import { EASING_LABELS, SCOPE_LABELS, nodeName, propLabel } from './labels';
-import { uid } from './project';
 import { currentState, editor } from './stage';
 import { moveKeyframe, setDraft, setPos, update, useEditor } from './store';
 
 const DEG = 180 / Math.PI;
-
-function NumberInput(props: {
-  value: number;
-  onChange: (value: number) => void;
-  step?: number;
-  min?: number;
-  max?: number;
-  label?: string;
-}) {
-  return (
-    <input
-      type="number"
-      aria-label={props.label}
-      value={Number.isFinite(props.value) ? Math.round(props.value * 1000) / 1000 : 0}
-      step={props.step ?? 0.1}
-      min={props.min}
-      max={props.max}
-      onChange={(e) => {
-        const value = parseFloat(e.target.value);
-        if (Number.isFinite(value)) props.onChange(value);
-      }}
-    />
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function VectorField(props: { label: string; value: Vec3; onChange: (value: Vec3) => void; scale?: number; step?: number }) {
-  const scale = props.scale ?? 1;
-  return (
-    <div className="field">
-      <span>{props.label}</span>
-      <div className="vector">
-        {['X', 'Y', 'Z'].map((axis, i) => (
-          <NumberInput
-            key={axis}
-            label={`${props.label} ${axis}`}
-            value={props.value[i] * scale}
-            step={props.step}
-            onChange={(n) => {
-              const next = [...props.value] as Vec3;
-              next[i] = n / scale;
-              props.onChange(next);
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ---------- Gespeicherter Punkt ----------
 
@@ -186,24 +130,12 @@ function KeyframeInspector({ id }: { id: string }) {
 
 // ---------- Abschnitt ----------
 
-const ELEMENT_LABELS: Record<PageElement['type'], string> = { headline: 'Headline', text: 'Text', button: 'Button' };
-
 function SectionEditor({ section }: { section: Section }) {
   const patch = (recipe: (s: Section) => void, key?: string) =>
     update((p) => {
       const target = p.sections.find((s) => s.id === section.id);
       if (target) recipe(target);
     }, key);
-
-  const add = (type: PageElement['type']) =>
-    patch((s) =>
-      void s.elements.push({
-        id: uid('el'),
-        type,
-        text: type === 'button' ? 'Mehr erfahren' : type === 'headline' ? 'Neue Headline' : 'Neuer Text',
-        ...(type === 'button' ? { href: '#' } : {}),
-      }),
-    );
 
   return (
     <section className="panel-block">
@@ -214,57 +146,15 @@ function SectionEditor({ section }: { section: Section }) {
         <input value={section.name} onChange={(e) => patch((s) => void (s.name = e.target.value), 'sec-name')} />
       </Field>
       <Field label="Höhe (vh)">
-        <NumberInput value={section.height} step={10} min={20} onChange={(n) => patch((s) => void (s.height = Math.max(20, n)), 'sec-height')} />
+        <NumberInput value={section.height} step={10} min={20} onChange={(n) => patch((s) => void (s.height = n), 'sec-height')} />
       </Field>
-      <Field label="Ausrichtung">
+      <Field label="Ausrichtung der Textspalte">
         <select value={section.align} onChange={(e) => patch((s) => void (s.align = e.target.value as Section['align']))}>
           <option value="left">Links</option>
           <option value="center">Mitte</option>
           <option value="right">Rechts</option>
         </select>
       </Field>
-
-      {section.elements.map((element, i) => (
-        <div className="element" key={element.id}>
-          <div className="keyvalue-head">
-            <strong>{ELEMENT_LABELS[element.type]}</strong>
-            <span>
-              <button disabled={i === 0} aria-label="Nach oben" onClick={() => patch((s) => void s.elements.splice(i - 1, 0, ...s.elements.splice(i, 1)))}>
-                ↑
-              </button>
-              <button
-                disabled={i === section.elements.length - 1}
-                aria-label="Nach unten"
-                onClick={() => patch((s) => void s.elements.splice(i + 1, 0, ...s.elements.splice(i, 1)))}
-              >
-                ↓
-              </button>
-              <button aria-label="Element löschen" onClick={() => patch((s) => void s.elements.splice(i, 1))}>
-                ×
-              </button>
-            </span>
-          </div>
-          <textarea
-            rows={element.type === 'text' ? 3 : 1}
-            aria-label={`${ELEMENT_LABELS[element.type]} Text`}
-            value={element.text}
-            onChange={(e) => patch((s) => void (s.elements[i].text = e.target.value), 'el-' + element.id)}
-          />
-          {element.type === 'button' && (
-            <input
-              aria-label="Linkziel"
-              placeholder="Linkziel, z. B. #kontakt"
-              value={element.href ?? ''}
-              onChange={(e) => patch((s) => void (s.elements[i].href = e.target.value), 'href-' + element.id)}
-            />
-          )}
-        </div>
-      ))}
-      <div className="row">
-        <button onClick={() => add('headline')}>+ Headline</button>
-        <button onClick={() => add('text')}>+ Text</button>
-        <button onClick={() => add('button')}>+ Button</button>
-      </div>
     </section>
   );
 }
@@ -307,6 +197,7 @@ function SceneEditor() {
         <Field label={`Bildwinkel: ${Math.round(num('camera.fov'))}°`}>
           <input type="range" min={10} max={90} value={num('camera.fov')} onChange={(e) => set('camera.fov')(parseFloat(e.target.value))} />
         </Field>
+        <FramingEditor />
       </section>
       <section className="panel-block">
         <header>
@@ -324,6 +215,52 @@ function SceneEditor() {
         </Field>
         <p className="hint">Änderungen gelten erst nach „Merken“ für diese Stelle der Seite.</p>
       </section>
+    </>
+  );
+}
+
+// ---------- Kameraausschnitt pro Breakpoint ----------
+
+const FRAMING_FIELDS: { key: keyof Framing; label: string; fallback: number; step: number }[] = [
+  { key: 'zoom', label: 'Zoom', fallback: 1, step: 0.05 },
+  { key: 'shiftX', label: 'Nach rechts schieben (%)', fallback: 0, step: 1 },
+  { key: 'shiftY', label: 'Nach unten schieben (%)', fallback: 0, step: 1 },
+];
+const ORDER: Breakpoint[] = ['desktop', 'tablet', 'mobile'];
+
+function FramingEditor() {
+  const framing = useEditor((s) => s.project.framing);
+  const breakpoint = useEditor((s) => s.breakpoint);
+
+  return (
+    <>
+      <h4>Kameraausschnitt · {BREAKPOINT_LABELS[breakpoint]}</h4>
+      {FRAMING_FIELDS.map((field) => {
+        let source: 'own' | Breakpoint | null = null;
+        let value: number | undefined;
+        for (let i = ORDER.indexOf(breakpoint); i >= 0 && value === undefined; i--) {
+          value = framing[ORDER[i]][field.key];
+          if (value !== undefined) source = ORDER[i] === breakpoint ? 'own' : ORDER[i];
+        }
+        const set = (next: number | undefined) =>
+          update((p) => {
+            if (next === undefined) delete p.framing[breakpoint][field.key];
+            else p.framing[breakpoint][field.key] = next;
+          }, `framing-${breakpoint}-${field.key}`);
+        return (
+          <InheritRow key={field.key} label={field.label} breakpoint={breakpoint} source={source} onReset={() => set(undefined)}>
+            <OptionalNumber
+              label={field.label}
+              value={source === 'own' ? value : undefined}
+              placeholder={String(value ?? field.fallback)}
+              step={field.step}
+              min={field.key === 'zoom' ? 0.1 : undefined}
+              onChange={set}
+            />
+          </InheritRow>
+        );
+      })}
+      <p className="hint">Der Ausschnitt gilt für die ganze Seite und wird nicht mit „Merken“ gespeichert.</p>
     </>
   );
 }
@@ -390,10 +327,12 @@ export function RightPanel() {
   const project = useEditor((s) => s.project);
   const selectedKeyframe = useEditor((s) => s.selectedKeyframe);
   const selectedSection = useEditor((s) => s.selectedSection);
+  const selectedComponent = useEditor((s) => s.selectedComponent);
   const section = project.sections.find((s) => s.id === selectedSection);
 
   return (
     <aside className="panel right">
+      {selectedComponent && <ComponentInspector key={selectedComponent} id={selectedComponent} />}
       {selectedKeyframe && <KeyframeInspector id={selectedKeyframe} />}
       <SceneEditor />
       {section && <SectionEditor key={section.id} section={section} />}

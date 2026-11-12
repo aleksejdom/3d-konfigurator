@@ -1,9 +1,23 @@
 import { useMemo } from 'react';
 import type { Budget, ModelStats, Project } from '../core/types';
+import { splitPos } from '../core/timeline.js';
+import type { ComponentType } from '../core/types';
+import {
+  COMPONENT_LABELS,
+  addComponent,
+  deleteTemplate,
+  effectiveStyle,
+  isContainer,
+  locate,
+  moveComponent,
+  resolvedTree,
+  type ResolvedNode,
+} from './components';
 import { nodeName } from './labels';
 import { createSection } from './project';
 import { editor } from './stage';
 import { importModel, setPos, update, useEditor } from './store';
+import { DRAG_TYPE } from './Viewport';
 
 const number = new Intl.NumberFormat('de-DE');
 const megabytes = (bytes: number) =>
@@ -226,10 +240,140 @@ function Model() {
   );
 }
 
+// ---------- Komponentenbibliothek ----------
+
+const LIBRARY: { type: Exclude<ComponentType, 'instance'>; hint: string }[] = [
+  { type: 'headline', hint: 'Überschrift' },
+  { type: 'text', hint: 'Absatz' },
+  { type: 'image', hint: 'PNG, JPG, SVG …' },
+  { type: 'button', hint: 'Link als Schaltfläche' },
+  { type: 'card', hint: 'Behälter für Elemente' },
+  { type: 'infobox', hint: 'Kompakter Hinweis' },
+];
+
+function Library() {
+  const project = useEditor((s) => s.project);
+  const pos = useEditor((s) => s.pos);
+  const section = project.sections[splitPos(project, pos).index];
+
+  /** Klick: in die ausgewählte Karte legen, sonst ins Seitenlayout des Abschnitts. */
+  const add = (spec: { type: Exclude<ComponentType, 'instance'> } | { templateId: string }) => {
+    if (!section) return;
+    const selected = useEditor.getState().selectedComponent;
+    const located = selected ? locate(project, selected) : null;
+    const container = located && (isContainer(located.node.type) || located.node.type === 'instance') ? selected! : undefined;
+    addComponent(spec, { sectionId: section.id, containerId: container });
+  };
+
+  const drag = (spec: object) => ({
+    draggable: true,
+    onDragStart: (event: React.DragEvent) => {
+      event.dataTransfer.setData(DRAG_TYPE, JSON.stringify(spec));
+      event.dataTransfer.effectAllowed = 'copy';
+      useEditor.setState({ dragging: true });
+    },
+    onDragEnd: () => useEditor.setState({ dragging: false }),
+  });
+
+  return (
+    <section className="panel-block">
+      <header>
+        <h3>Komponenten</h3>
+      </header>
+      <div className="library">
+        {LIBRARY.map((item) => (
+          <button key={item.type} {...drag({ type: item.type })} onClick={() => add({ type: item.type })}>
+            <strong>{COMPONENT_LABELS[item.type]}</strong>
+            <small>{item.hint}</small>
+          </button>
+        ))}
+      </div>
+      <p className="hint">In den Viewport ziehen: auf eine Karte, in die Textspalte oder frei über das Modell.</p>
+      {project.templates.length > 0 && (
+        <>
+          <h4>Vorlagen</h4>
+          <ul className="list">
+            {project.templates.map((template) => (
+              <li key={template.id}>
+                <button className="list-main" {...drag({ templateId: template.id })} onClick={() => add({ templateId: template.id })}>
+                  <span className="kind">❖</span> {template.name}
+                </button>
+                <button onClick={() => deleteTemplate(template.id)} aria-label={`Vorlage ${template.name} löschen`} title="Vorlage löschen">
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ---------- Ebenen des Abschnitts ----------
+
+const LAYER_DRAG = 'application/x-layer';
+
+function Layers() {
+  const project = useEditor((s) => s.project);
+  const pos = useEditor((s) => s.pos);
+  const selected = useEditor((s) => s.selectedComponent);
+  const breakpoint = useEditor((s) => s.breakpoint);
+  const section = project.sections[splitPos(project, pos).index];
+  if (!section) return null;
+
+  const rows: { node: ResolvedNode; depth: number }[] = [];
+  const visit = (node: ResolvedNode, depth: number) => {
+    rows.push({ node, depth });
+    node.children.forEach((child) => visit(child, depth + 1));
+  };
+  resolvedTree(project, section).forEach((node) => visit(node, 0));
+
+  return (
+    <section className="panel-block">
+      <header>
+        <h3>Ebenen · {section.name}</h3>
+      </header>
+      {rows.length === 0 && <p className="hint">Dieser Abschnitt hat noch keine Komponenten.</p>}
+      <ul className="list tree">
+        {rows.map(({ node, depth }) => {
+          const template = node.templateId ? project.templates.find((t) => t.id === node.templateId) : null;
+          const hidden = effectiveStyle(locate(project, node.id)?.node ?? node, breakpoint).visible === false;
+          return (
+            <li key={node.id} className={node.id === selected ? 'selected' : ''}>
+              <button
+                className="list-main"
+                style={{ paddingLeft: 8 + depth * 14 }}
+                draggable={!node.id.includes('--')}
+                onDragStart={(event) => event.dataTransfer.setData(LAYER_DRAG, node.id)}
+                onDragOver={(event) => event.dataTransfer.types.includes(LAYER_DRAG) && event.preventDefault()}
+                onDrop={(event) => {
+                  const id = event.dataTransfer.getData(LAYER_DRAG);
+                  if (id) moveComponent(id, node.id, isContainer(node.type) ? 'inside' : 'before');
+                }}
+                onClick={() => useEditor.setState({ selectedComponent: node.id })}
+              >
+                <span className="kind">{isContainer(node.type) ? '▤' : '·'}</span> {COMPONENT_LABELS[node.type]}
+                {node.text && <small>{node.text.slice(0, 22)}</small>}
+                {template && <span className="badge">{template.name}</span>}
+                {depth === 0 && node.placement === 'free' && <span className="badge quiet">frei</span>}
+                {hidden && <span className="badge quiet">ausgeblendet</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {rows.length > 1 && <p className="hint">Ziehen sortiert um. Auf eine Karte gezogen, wandert das Element hinein.</p>}
+    </section>
+  );
+}
+
 export function LeftPanel() {
   return (
     <aside className="panel left">
       <Sections />
+      <Library />
+      <Layers />
       <SceneTree />
       <Model />
     </aside>

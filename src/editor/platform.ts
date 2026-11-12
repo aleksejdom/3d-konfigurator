@@ -77,15 +77,15 @@ export async function readText(dir: DirRef, path: string): Promise<string | null
 }
 
 /** Datei auswählen und einlesen. */
-export async function pickFile(extensions: string[]): Promise<{ name: string; data: ArrayBuffer } | null> {
+export async function pickFile(extensions: string[], label = 'Datei'): Promise<{ name: string; data: ArrayBuffer } | null> {
   if (isTauri) {
     const { open } = await import('@tauri-apps/plugin-dialog');
-    const path = await open({ multiple: false, filters: [{ name: '3D-Modell', extensions }] });
+    const path = await open({ multiple: false, filters: [{ name: label, extensions }] });
     if (typeof path !== 'string') return null;
     const fs = await import('@tauri-apps/plugin-fs');
     const bytes = await fs.readFile(path);
     return {
-      name: path.split(/[\\/]/).pop() || 'modell.glb',
+      name: path.split(/[\\/]/).pop() || 'datei',
       data: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
     };
   }
