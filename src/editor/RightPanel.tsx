@@ -1,3 +1,4 @@
+import { capturePoster, importEnvironment, importPoster } from './store';
 import { FieldInspector } from './DataPanels';
 import { GroupInspector, MeshActionField } from './ConfiguratorPanels';
 import { useMemo } from 'react';
@@ -282,6 +283,9 @@ const BUDGET_FIELDS: { key: keyof Budget; label: string; step: number }[] = [
 
 function PageSettings() {
   const project = useEditor((s) => s.project);
+  const environment = project.settings.environment;
+  const posterUrl = useEditor((s) => (project.settings.poster ? s.assets[project.settings.poster]?.url : undefined));
+  const setEnvironment = (patch: Partial<typeof environment>) => update((p) => void Object.assign(p.settings.environment, patch), 'environment');
   return (
     <section className="panel-block">
       <header>
@@ -304,6 +308,58 @@ function PageSettings() {
           onChange={(e) => update((p) => void (p.settings.scrollSmoothing = parseFloat(e.target.value)), 'smoothing')}
         />
       </Field>
+      <Field label="Reduzierte Bewegung">
+        <select
+          value={project.settings.reducedMotion}
+          onChange={(e) => update((p) => void (p.settings.reducedMotion = e.target.value as 'respect' | 'ignore'))}
+        >
+          <option value="respect">Wunsch des Geräts beachten</option>
+          <option value="ignore">Immer volle Bewegung</option>
+        </select>
+      </Field>
+
+      <h4>Umgebung (HDRI / Skybox)</h4>
+      <div className="row">
+        <button onClick={importEnvironment}>{environment.file ? 'Austauschen' : 'HDRI oder Panorama wählen'}</button>
+        {environment.file && <button onClick={() => update((p) => void (p.settings.environment.file = null))}>Entfernen</button>}
+      </div>
+      {!environment.file && <p className="hint">Ohne Datei beleuchtet eine neutrale Studio-Umgebung das Modell.</p>}
+      {environment.file && (
+        <>
+          <p className="hint" title={environment.file}>
+            {environment.file}. Die Stärke der Beleuchtung stellst du unter „Licht“ als Umgebungslicht ein; sie lässt sich merken.
+          </p>
+          <Field label={`Ausrichtung: ${Math.round(environment.rotation)}°`}>
+            <input type="range" min={0} max={360} step={1} value={environment.rotation} onChange={(e) => setEnvironment({ rotation: parseFloat(e.target.value) })} />
+          </Field>
+          <label className="check">
+            <input type="checkbox" checked={environment.showBackground} onChange={(e) => setEnvironment({ showBackground: e.target.checked })} />
+            Umgebung als Hintergrund zeigen
+          </label>
+          {environment.showBackground && (
+            <>
+              <Field label={`Helligkeit des Hintergrunds: ${environment.backgroundIntensity.toFixed(1)}`}>
+                <input type="range" min={0} max={3} step={0.1} value={environment.backgroundIntensity} onChange={(e) => setEnvironment({ backgroundIntensity: parseFloat(e.target.value) })} />
+              </Field>
+              <Field label={`Unschärfe des Hintergrunds: ${environment.backgroundBlur.toFixed(2)}`}>
+                <input type="range" min={0} max={1} step={0.05} value={environment.backgroundBlur} onChange={(e) => setEnvironment({ backgroundBlur: parseFloat(e.target.value) })} />
+              </Field>
+            </>
+          )}
+        </>
+      )}
+
+      <h4>Posterbild beim Laden</h4>
+      {posterUrl && <img className="poster-thumb" src={posterUrl} alt="Posterbild" />}
+      <div className="row wrap">
+        <button onClick={capturePoster} disabled={!project.model.file}>
+          Aus aktueller Ansicht
+        </button>
+        <button onClick={importPoster}>Bild wählen</button>
+        {project.settings.poster && <button onClick={() => update((p) => void (p.settings.poster = null))}>Entfernen</button>}
+      </div>
+      <p className="hint">Das Bild ist zu sehen, bis das Modell geladen und zum ersten Mal gerendert ist.</p>
+
       <h4>Performance-Budgets</h4>
       <div className="budgets">
         <span />

@@ -21,9 +21,28 @@ export const editor = {
 
 export const nodeProps = (id: string) => NODE_FIELDS.map((field: string) => `node:${id}.${field}`);
 
-export async function loadIntoStage(buffer: ArrayBuffer): Promise<ModelStats> {
+const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', svg: 'image/svg+xml' };
+
+/** Adressen für Dateien aus dem Arbeitsspeicher (Begleitdateien eines .gltf, HDRI). */
+export function blobUrls(files: Record<string, ArrayBuffer>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(files).map(([name, data]) => {
+      const type = MIME[name.split('.').pop()!.toLowerCase()] ?? '';
+      return [name, URL.createObjectURL(new Blob([data], { type }))];
+    }),
+  );
+}
+
+/** @param resources Begleitdateien eines .gltf: Name -> Inhalt */
+export async function loadIntoStage(buffer: ArrayBuffer, resources: Record<string, ArrayBuffer> = {}): Promise<ModelStats> {
   const stage = editor.stage!;
-  const stats = await loadModel(stage, buffer);
+  const urls = blobUrls(resources);
+  let stats: ModelStats;
+  try {
+    stats = await loadModel(stage, buffer, { resourceUrl: (name: string) => urls[name], dracoPath: './draco/' });
+  } finally {
+    Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+  }
   editor.defaults = {};
   editor.reset = {};
   for (const id of stage.nodes.keys()) {
@@ -63,4 +82,4 @@ export function sameValue(a: Value | undefined, b: Value | undefined): boolean {
 }
 
 // Für automatische Tests des Editors erreichbar.
-(window as unknown as { __editor: typeof editor }).__editor = editor;
+if (typeof window !== 'undefined') (window as unknown as { __editor: typeof editor }).__editor = editor;

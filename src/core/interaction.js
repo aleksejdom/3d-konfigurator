@@ -104,7 +104,7 @@ const approach = (damping, dt) => (damping <= 0 ? 1 : 1 - Math.pow(Math.min(damp
  * @param {HTMLElement} options.canvas
  * @param {() => string} options.getBreakpoint
  */
-export function createInteraction({ stage, project, root, canvas, getBreakpoint }) {
+export function createInteraction({ stage, project, root, canvas, getBreakpoint, reduced = false }) {
   const camera = stage.camera;
   const elements = [...root.querySelectorAll('[data-hotspot]')];
   const subjectOf = (item) => (item.subject === 'camera' ? camera : stage.nodes.get(item.subject.slice(5)));
@@ -162,7 +162,8 @@ export function createInteraction({ stage, project, root, canvas, getBreakpoint 
     detail.from = { position: shown.position.clone(), target: shown.target.clone() };
     detail.progress = 0;
     detail.closing = closing;
-    detail.duration = Math.max(0.01, hotspot ? hotspot.duration : 1);
+    // Reduzierte Bewegung: Die Kamera springt direkt zur Ansicht.
+    detail.duration = reduced ? 0.01 : Math.max(0.01, hotspot ? hotspot.duration : 1);
     detail.easing = hotspot ? hotspot.easing : 'easeInOut';
   };
 
@@ -229,7 +230,7 @@ export function createInteraction({ stage, project, root, canvas, getBreakpoint 
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
   function updateFollow(dt) {
-    for (const follow of project.follows) {
+    for (const follow of reduced ? [] : project.follows) {
       const object = subjectOf(follow);
       const state = followState.get(follow.id);
       if (!object || !state) continue;
@@ -290,7 +291,7 @@ export function createInteraction({ stage, project, root, canvas, getBreakpoint 
   }
 
   function updateLookAt(dt) {
-    for (const look of project.lookAts) {
+    for (const look of reduced ? [] : project.lookAts) {
       const object = subjectOf(look);
       const state = lookState.get(look.id);
       if (!object || !state) continue;

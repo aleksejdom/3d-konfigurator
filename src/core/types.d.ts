@@ -1,4 +1,4 @@
-// Projektformat des 3D-Web-Editors (Version 5).
+// Projektformat des 3D-Web-Editors (Version 6).
 // Diese Typen beschreiben project.json. Editor, Vorschau und Export lesen dasselbe Format.
 
 export type Vec3 = [number, number, number];
@@ -321,6 +321,8 @@ export interface ModelStats {
   meshes: number;
   materials: number;
   textures: { name: string; width: number; height: number }[];
+  /** Das Modell nutzt Draco-Kompression und braucht den Decoder */
+  draco?: boolean;
   /** Namen der Animationsclips im Modell */
   clips?: string[];
   /** Namen der Materialien im Modell */
@@ -334,10 +336,28 @@ export interface Budget {
   drawCalls: number;
 }
 
+/**
+ * Umgebung (HDRI oder Skybox). Sie beleuchtet das Modell und erzeugt Reflexionen.
+ * Die Stärke der Beleuchtung ist die animierbare Eigenschaft "ambient.intensity".
+ */
+export interface EnvironmentSettings {
+  /** .hdr oder ein Panoramabild (jpg, png, webp). null = neutrale Studio-Umgebung */
+  file: string | null;
+  /** Umgebung auch als Hintergrund zeigen. Sonst gilt die Hintergrundfarbe. */
+  showBackground: boolean;
+  /** Ausrichtung in Grad um die Hochachse */
+  rotation: number;
+  /** Helligkeit des Hintergrunds, unabhängig von der Beleuchtung */
+  backgroundIntensity: number;
+  /** Unschärfe des Hintergrunds, 0 bis 1 */
+  backgroundBlur: number;
+}
+
 export interface Project {
-  formatVersion: 5;
+  formatVersion: 6;
   name: string;
-  model: { file: string | null; stats: ModelStats | null };
+  /** resources: Begleitdateien eines .gltf (Puffer und Texturen), relativ zur Modelldatei */
+  model: { file: string | null; stats: ModelStats | null; resources?: string[] };
   /** Ausgangswerte aller animierbaren Eigenschaften. */
   base: Record<string, Value>;
   sections: Section[];
@@ -355,5 +375,13 @@ export interface Project {
     background: string;
     /** 0 = Szene folgt der Scrollposition direkt. 0..1 = leichte Dämpfung. */
     scrollSmoothing: number;
+    environment: EnvironmentSettings;
+    /** Bild, das während des Ladens statt der 3D-Szene zu sehen ist (Dateiname) */
+    poster: string | null;
+    /**
+     * respect = Wünscht das Gerät des Besuchers reduzierte Bewegung, entfallen Dämpfung, Einblendungen,
+     * Look At, Follow und Kamerafahrten (die Kamera springt direkt). ignore = immer volle Bewegung.
+     */
+    reducedMotion: 'respect' | 'ignore';
   };
 }

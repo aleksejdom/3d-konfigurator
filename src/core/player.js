@@ -10,7 +10,7 @@ import { bindComponents, breakpointFor, resolveFraming } from './components.js';
 import { createInteraction } from './interaction.js';
 import { createConfigurator } from './configurator.js';
 import { createDataBindings } from './data.js';
-import { applyFraming, applyState, createStage, loadModel, renderStage, resizeStage, setBackground } from './stage.js';
+import { applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, loadModel, renderStage, resizeStage } from './stage.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -30,16 +30,46 @@ async function simulateDownload(bytes, startedAt, throttle) {
  * @param {ArrayBuffer} [options.modelBuffer] Modell direkt aus dem Speicher (Editor-Vorschau)
  * @param {{latencyMs: number, mbps: number}} [options.throttle] simulierte Verbindung
  * @param {(ms: number) => void} [options.onFirstRender] Zeit vom Seitenstart bis zum ersten Bild mit Modell
+ * @param {(name: string) => string | undefined} [options.resourceUrl] Adresse einer Begleitdatei des Modells (Editor-Vorschau)
+ * @param {string} [options.envUrl] Adresse des HDRI oder Panoramas
+ * @param {string} [options.dracoPath] Ordner mit dem Draco-Decoder
+ * @param {boolean} [options.reducedMotion] reduzierte Bewegung erzwingen oder abschalten (Editor-Vorschau)
  * @param {'test' | 'live'} [options.dataMode] Digitaler Zwilling: Testdaten oder Live-Quelle erzwingen (Editor-Vorschau)
  */
-export async function startPlayer({ project, canvas, modelUrl, modelBuffer, throttle, onFirstRender, dataMode }) {
+export async function startPlayer({
+  project,
+  canvas,
+  modelUrl,
+  modelBuffer,
+  resourceUrl,
+  envUrl,
+  dracoPath,
+  throttle,
+  onFirstRender,
+  dataMode,
+  reducedMotion,
+}) {
   const stage = createStage(canvas);
-  setBackground(stage, project.settings.background);
+  applyEnvironment(stage, project.settings);
+
+  // Reduzierte Bewegung: Wunsch des Geräts, sofern das Projekt ihn beachtet.
+  const reduced =
+    project.settings.reducedMotion !== 'ignore' &&
+    (reducedMotion ?? window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  document.documentElement.classList.toggle('reduced-motion', reduced);
+
+  // HDRI oder Panorama als Umgebung; bis es geladen ist, gilt die Studio-Umgebung.
+  const environmentFile = project.settings.environment.file;
+  const environmentReady = environmentFile && envUrl
+    ? loadEnvironment(stage, envUrl, environmentFile)
+        .then(() => applyEnvironment(stage, project.settings))
+        .catch(() => console.warn('Die Umgebung konnte nicht geladen werden:', environmentFile))
+    : Promise.resolve();
 
   const sectionElements = document.querySelectorAll('[data-section]');
-  const updateComponents = bindComponents(document, project.sections.map((section) => section.id));
+  const updateComponents = bindComponents(document, project.sections.map((section) => section.id), { reduced });
   let breakpoint = 'desktop';
-  const interaction = createInteraction({ stage, project, root: document, canvas, getBreakpoint: () => breakpoint });
+  const interaction = createInteraction({ stage, project, root: document, canvas, getBreakpoint: () => breakpoint, reduced });
   const configurator = createConfigurator({
     stage,
     project,
@@ -47,6 +77,7 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     canvas,
     openHotspot: interaction.openHotspot,
     closeDetail: interaction.closeDetail,
+    reduced,
   });
   // Digitaler Zwilling: Daten der Quelle auf Modell und Oberfläche übertragen.
   const data = createDataBindings({ stage, project, root: document, configurator, mode: dataMode });
@@ -81,7 +112,7 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
   const frame = (now) => {
     const dt = Math.min(0.1, (now - lastTime) / 1000);
     lastTime = now;
-    const smoothing = project.settings.scrollSmoothing || 0;
+    const smoothing = reduced ? 0 : project.settings.scrollSmoothing || 0;
     if (smoothing > 0 && Math.abs(targetPos - currentPos) > 0.0005) {
       currentPos += (targetPos - currentPos) * (1 - smoothing);
       needsRender = true;
@@ -109,13 +140,21 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     const startedAt = performance.now();
     const buffer = modelBuffer || (await (await fetch(modelUrl)).arrayBuffer());
     await simulateDownload(buffer.byteLength, startedAt, throttle);
-    await loadModel(stage, buffer);
+    await loadModel(stage, buffer, {
+      // Begleitdateien eines .gltf liegen im Ordner der Modelldatei.
+      path: modelUrl ? modelUrl.slice(0, modelUrl.lastIndexOf('/') + 1) : '',
+      resourceUrl,
+      dracoPath,
+    });
+    await environmentReady;
     interaction.bind();
     applyState(stage, evaluate(project, currentPos));
     configurator.update(0, currentPos);
     interaction.update(0, currentPos);
     renderStage(stage);
     canvas.dataset.ready = 'true';
+    // Blendet das Posterbild aus.
+    document.documentElement.classList.add('is-ready');
     // performance.now() zählt ab dem Start der Seite.
     requestAnimationFrame(() => onFirstRender && onFirstRender(performance.now()));
   }

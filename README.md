@@ -36,7 +36,7 @@ unter „Actions“ den Workflow „Windows-Installer“ starten und das Artefak
 ## Prüfen
 
 ```
-npm test                # Timeline, Scrollzuordnung, Komponenten, Vorlagen, Breakpoints, Hotspots, Look At, Konfigurator
+npm test                # Timeline, Scrollzuordnung, Komponenten, Vorlagen, Breakpoints, Hotspots, Look At, Konfigurator, Daten
 npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
 ```
 
@@ -54,8 +54,23 @@ npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
    „Kamera zu Hotspot fahren“ geben. Für ein ausgewähltes Bauteil „+ Look At“ oder „+ Follow“ anlegen.
 8. Für den Konfigurator ein Bauteil auswählen und links „+ Variante“ oder „+ Material“ anlegen. Den Besuchern
    gibst du einen Varianten-Slider, eine Auswahlliste oder Buttons mit der passenden Aktion.
-9. **Vorschau** zeigt die echte Seite und misst die Zeit bis zum ersten sichtbaren Render.
-10. **Exportieren** schreibt ein Astro- oder ein HTML/CSS/JavaScript-Projekt in einen Ordner.
+9. Für einen Digitalen Zwilling links unter „Daten“ Datenfelder anlegen, Testwerte setzen und Bauteile, Karten,
+   Messwerte oder Statusanzeigen daran binden. Die Datenquelle der veröffentlichten Seite stellst du dort ebenfalls ein.
+10. Unter „Seite“ rechts: HDRI oder Panorama als Umgebung, Posterbild für die Ladephase, reduzierte Bewegung.
+11. **Vorschau** zeigt die echte Seite in Desktop-, Tablet- und Mobile-Breite, misst die Zeit bis zum ersten sichtbaren
+    Render, schaltet zwischen Testdaten und Live-Quelle um und zeigt die Seite mit reduzierter Bewegung.
+    „Smartphone“ erzeugt in der Desktop-App einen Link mit QR-Code fürs lokale WLAN.
+12. **Exportieren** schreibt ein Astro- oder ein HTML/CSS/JavaScript-Projekt in einen Ordner.
+
+## Live-Daten ausprobieren
+
+```
+npm run demo:data
+```
+
+startet eine Beispiel-Datenquelle auf Port 4800: REST unter `http://localhost:4800/data`, Server-Sent Events unter
+`/events`, WebSocket unter `ws://localhost:4800/ws`. Die Felder heißen `motor.rpm`, `motor.temperature`,
+`motor.status` und `door.open`. Einen Wert setzt du zum Testen mit `http://localhost:4800/set?motor.status=error`.
 
 ## Aufbau
 
@@ -74,7 +89,7 @@ denselben Zustand.
 ## Projektordner
 
 ```
-project.json     Abschnitte, Komponenten, Vorlagen, Hotspots, Look At, Follow, Variantengruppen, gespeicherte Punkte, Budgets (formatVersion 4)
+project.json     Abschnitte, Komponenten, Vorlagen, Hotspots, Look At, Follow, Variantengruppen, Datenfelder, gespeicherte Punkte, Budgets (formatVersion 6)
 snapshots.json   benannte Projektstände
-assets/          Modelldatei und Bilder
+assets/          Modelldatei mit Begleitdateien, Bilder, Posterbild, HDRI
 ```

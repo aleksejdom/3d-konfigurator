@@ -5,6 +5,7 @@
 // durch eine Reset-Aktion oder beim Erreichen eines Abschnitts, der die Gruppe an die Timeline übergibt.
 
 import * as THREE from 'three';
+import { applyClipTimes } from './stage.js';
 import { approachWeights, dominant, isAvailable, optionProp, parseAction, resolveSelection, stepOption, toWeights } from './actions.js';
 
 // ---------- Szene ----------
@@ -228,7 +229,7 @@ const INTERACTIVE = 'a, button, select, input, textarea, label, [data-action], .
  * @param {(id: string) => void} [options.openHotspot] Kamerafahrt zu einem Hotspot (für Klicks auf Bauteile)
  * @param {() => void} [options.closeDetail]
  */
-export function createConfigurator({ stage, project, root, canvas, openHotspot, closeDetail }) {
+export function createConfigurator({ stage, project, root, canvas, openHotspot, closeDetail, reduced = false }) {
   const groups = project.variantGroups;
   /** Wahl des Besuchers: Gruppe -> Wahl. Fehlt eine Gruppe, gilt die Timeline. */
   const chosen = {};
@@ -456,7 +457,7 @@ export function createConfigurator({ stage, project, root, canvas, openHotspot, 
           next[group.id] = target;
           continue;
         }
-        const step = group.fade > 0 ? dt / group.fade : 1;
+        const step = group.fade > 0 && !reduced ? dt / group.fade : 1;
         const { weights, done } = approachWeights(shown[group.id] || target, target, step);
         next[group.id] = weights;
         if (!done) fading = true;
@@ -466,6 +467,8 @@ export function createConfigurator({ stage, project, root, canvas, openHotspot, 
       applyOptions(stage, project, shown, tints);
 
       if (stage.mixer && (playing.size > 0 || driven.size > 0)) stage.mixer.update(dt);
+      // Clips, die an die Scroll-Timeline gebunden sind, folgen der Scrollposition.
+      applyClipTimes(stage, new Set([...playing, ...driven.keys()]));
 
       if (pointer.moved) {
         pointer.moved = false;

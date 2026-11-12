@@ -56,7 +56,7 @@ const parseRange = (text) => (text ? text.split(' ').map(Number) : null);
  * @param {string[]} sectionIds IDs der Abschnitte in Seitenreihenfolge
  * @returns {(pos: number) => void} Funktion, die den Fortschritt für eine Timeline-Position setzt
  */
-export function bindComponents(root, sectionIds) {
+export function bindComponents(root, sectionIds, { reduced = false } = {}) {
   const items = [...root.querySelectorAll('[data-anim], [data-free]')].map((element) => {
     const sectionId = element.dataset.for || element.closest('[data-section]')?.dataset.section;
     return {
@@ -71,7 +71,9 @@ export function bindComponents(root, sectionIds) {
 
   return (pos) => {
     for (const item of items) {
-      const u = Math.round(animationProgress(pos - item.index, item.inRange, item.outRange, item.free) * 1000) / 1000;
+      let u = Math.round(animationProgress(pos - item.index, item.inRange, item.outRange, item.free) * 1000) / 1000;
+      // Reduzierte Bewegung: Komponenten stehen ohne Einblendung an ihrem Platz.
+      if (reduced) u = item.free ? (u > 0 ? 1 : 0) : 1;
       if (u === item.last) continue;
       item.last = u;
       item.element.style.setProperty('--u', String(u));

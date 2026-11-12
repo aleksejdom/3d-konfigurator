@@ -1,3 +1,6 @@
+import { clipProp } from '../core/stage.js';
+import { currentState } from './stage';
+import { releaseClip, setClipTime } from './store';
 import { DataList } from './DataPanels';
 import { ConfiguratorList } from './ConfiguratorPanels';
 import { useMemo } from 'react';
@@ -178,6 +181,9 @@ function Model() {
   const modelVersion = useEditor((s) => s.modelVersion);
   const measurement = useEditor((s) => s.measurement);
   const { file, stats } = project.model;
+  const pos = useEditor((s) => s.pos);
+  const draft = useEditor((s) => s.draft);
+  const state = useMemo(() => currentState(project, pos, draft), [project, pos, draft]);
   const missing = useMemo(() => missingNodes(project), [project, modelVersion]);
   const warnings = stats && file ? budgetWarnings(stats, file, drawCalls, project.budgets) : [];
 
@@ -208,6 +214,33 @@ function Model() {
             <dt>Texturen</dt>
             <dd>{stats.textures.length === 0 ? 'keine' : stats.textures.length}</dd>
           </dl>
+          {(stats.clips ?? []).length > 0 && (
+            <div className="clips">
+              <h4>Animationsclips in der Timeline</h4>
+              {(stats.clips ?? []).map((clip) => {
+                const time = state[clipProp(clip)] as number | undefined;
+                return (
+                  <div className="clip-row" key={clip}>
+                    <span title={clip}>{clip}</span>
+                    <input
+                      type="range"
+                      aria-label={`Position von ${clip}`}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={time ?? 0}
+                      onChange={(e) => setClipTime(clip, parseFloat(e.target.value))}
+                    />
+                    <small>{time === undefined ? 'frei' : Math.round(time * 100) + ' %'}</small>
+                    <button disabled={time === undefined} onClick={() => releaseClip(clip)} aria-label={`${clip} von der Timeline lösen`} title="Von der Timeline lösen">
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+              <p className="hint">Regler bewegen und „Merken“: Der Clip läuft dann mit dem Scrollen vor und zurück.</p>
+            </div>
+          )}
           {stats.textures.length > 0 && (
             <ul className="textures">
               {stats.textures.map((texture, i) => (

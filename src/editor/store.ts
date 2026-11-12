@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { splitPos } from '../core/timeline.js';
-import { defaultBase, readProp } from '../core/stage.js';
+import { clipProp, defaultBase, readProp, renderStage } from '../core/stage.js';
 import { buildExport } from '../export/exporter.js';
 import { usedImages } from '../export/page.js';
 import type { Breakpoint, Keyframe, Project, Scope, Value } from '../core/types';
@@ -11,6 +11,7 @@ import {
   downloadZip,
   pickDirectory,
   pickFile,
+  pickModel,
   readBinary,
   readText,
   writeFiles,
@@ -58,6 +59,8 @@ interface EditorState {
   /** Wird gerade eine Komponente aus der Bibliothek gezogen? */
   dragging: boolean;
   modelBuffer: ArrayBuffer | null;
+  /** Begleitdateien eines .gltf: Name -> Inhalt */
+  modelResources: Record<string, ArrayBuffer>;
   /** Zählt hoch, sobald ein Modell geladen wurde */
   modelVersion: number;
   dir: DirRef | null;
@@ -90,6 +93,7 @@ export const useEditor = create<EditorState>(() => ({
   assets: {},
   dragging: false,
   modelBuffer: null,
+  modelResources: {},
   modelVersion: 0,
   dir: null,
   unsaved: false,
@@ -244,22 +248,41 @@ export function keyframePos(project: Project, keyframe: Keyframe): number {
 
 // ---------- Modell ----------
 
-async function applyModel(name: string, data: ArrayBuffer) {
-  const stats = await loadIntoStage(data);
+/** Verweise eines .gltf auf Begleitdateien (Puffer und Texturen). */
+function gltfReferences(data: ArrayBuffer): string[] {
+  const json = JSON.parse(new TextDecoder().decode(data)) as { buffers?: { uri?: string }[]; images?: { uri?: string }[] };
+  const uris = [...(json.buffers ?? []), ...(json.images ?? [])].map((entry) => entry.uri).filter((uri): uri is string => Boolean(uri) && !uri!.startsWith('data:'));
+  return [...new Set(uris.map((uri) => decodeURIComponent(uri)))];
+}
+
+async function applyModel(name: string, data: ArrayBuffer, readSibling?: (uri: string) => Promise<ArrayBuffer | null>) {
+  const resources: Record<string, ArrayBuffer> = {};
+  if (/\.gltf$/i.test(name)) {
+    const missing: string[] = [];
+    for (const uri of gltfReferences(data)) {
+      const file = readSibling ? await readSibling(uri) : null;
+      if (file) resources[uri] = file;
+      else missing.push(uri);
+    }
+    if (missing.length > 0) {
+      throw new Error(`Begleitdateien fehlen: ${missing.join(', ')}. Wähle sie zusammen mit der .gltf-Datei aus.`);
+    }
+  }
+  const stats = await loadIntoStage(data, resources);
   const hadModel = get().project.model.file !== null;
   update((project) => {
-    project.model = { file: name, stats };
+    project.model = { file: name, stats, ...(Object.keys(resources).length > 0 ? { resources: Object.keys(resources) } : {}) };
     // Beim ersten Import wird die Kamera auf das Modell ausgerichtet. Beim Austausch bleibt alles erhalten.
     if (!hadModel) project.base = { ...defaultBase(editor.stage!), ...project.base };
   });
-  set({ modelBuffer: data, modelVersion: get().modelVersion + 1, draft: {}, selectedNode: null, measurement: null });
+  set({ modelBuffer: data, modelResources: resources, modelVersion: get().modelVersion + 1, draft: {}, selectedNode: null, measurement: null });
 }
 
 export async function importModel() {
-  const file = await pickFile(['glb', 'gltf'], '3D-Modell');
+  const file = await pickModel();
   if (!file) return;
   try {
-    await applyModel(file.name, file.data);
+    await applyModel(file.name, file.data, file.readSibling);
   } catch (error) {
     notify('Das Modell konnte nicht gelesen werden: ' + (error as Error).message);
   }
@@ -287,12 +310,64 @@ export async function importImage(): Promise<string | null> {
   return file.name;
 }
 
+/** HDRI (.hdr) oder Panoramabild als Umgebung wählen. */
+export async function importEnvironment() {
+  const file = await pickFile(['hdr', 'jpg', 'jpeg', 'png', 'webp'], 'HDRI oder Panorama');
+  if (!file) return;
+  addAsset(file.name, file.data);
+  update((project) => void (project.settings.environment.file = file.name));
+}
+
+/** Posterbild für die Ladephase aus der aktuellen Ansicht des Viewports erzeugen. */
+export async function capturePoster() {
+  const { stage, gizmo } = editor;
+  if (!stage) return;
+  const helper = gizmo?.getHelper();
+  const visible = helper?.visible ?? false;
+  if (helper) helper.visible = false;
+  renderStage(stage);
+  // Direkt nach dem Rendern ist das Bild noch im Zeichenpuffer.
+  const dataUrl = stage.renderer.domElement.toDataURL('image/jpeg', 0.85);
+  if (helper) helper.visible = visible;
+  addAsset('poster.jpg', await (await fetch(dataUrl)).arrayBuffer());
+  update((project) => void (project.settings.poster = 'poster.jpg'));
+}
+
+export async function importPoster() {
+  const name = await importImage();
+  if (name) update((project) => void (project.settings.poster = name));
+}
+
+/** Position eines Animationsclips in der Timeline setzen (0 bis 1), siehe showOption. */
+export function setClipTime(name: string, time: number) {
+  const prop = clipProp(name);
+  if (get().project.keyframes.some((keyframe) => prop in keyframe.values)) setDraft({ [prop]: time });
+  else update((project) => void (project.base[prop] = time), 'clip-' + name);
+}
+
+/** Bindung eines Clips an die Timeline lösen. */
+export function releaseClip(name: string) {
+  const prop = clipProp(name);
+  update((project) => {
+    delete project.base[prop];
+    project.keyframes.forEach((keyframe) => delete keyframe.values[prop]);
+  });
+  editor.stage?.mixer?.stopAllAction();
+  if (editor.stage) delete editor.stage.params[prop];
+}
+
 function clearAssets() {
   Object.values(get().assets).forEach((asset) => URL.revokeObjectURL(asset.url));
   set({ assets: {} });
 }
 
 // ---------- Speichern, Öffnen, Projektstände ----------
+
+/** Bilder, Posterbild und Umgebung des Projekts. */
+function projectAssets(project: Project): string[] {
+  const environment = project.settings.environment.file;
+  return [...(usedImages(project) as string[]), ...(environment ? [environment] : [])];
+}
 
 function projectFiles(): FileMap {
   const { project, snapshots, modelBuffer, assets } = get();
@@ -301,7 +376,8 @@ function projectFiles(): FileMap {
     'snapshots.json': JSON.stringify(snapshots, null, 2) + '\n',
   };
   if (project.model.file && modelBuffer) files['assets/' + project.model.file] = new Uint8Array(modelBuffer);
-  for (const name of usedImages(project)) {
+  for (const [name, data] of Object.entries(get().modelResources)) files['assets/' + name] = new Uint8Array(data);
+  for (const name of projectAssets(project)) {
     if (assets[name]) files['assets/' + name] = new Uint8Array(assets[name].data);
   }
   return files;
@@ -341,10 +417,15 @@ export async function openProject() {
     const snapshotText = await readText(dir, 'snapshots.json');
     const model = project.model.file ? await readBinary(dir, 'assets/' + project.model.file) : null;
     if (project.model.file && !model) notify(`Die Modelldatei assets/${project.model.file} fehlt.`);
-    if (model) await loadIntoStage(model);
+    const resources: Record<string, ArrayBuffer> = {};
+    for (const name of project.model.resources ?? []) {
+      const file = await readBinary(dir, 'assets/' + name);
+      if (file) resources[name] = file;
+    }
+    if (model) await loadIntoStage(model, resources);
     else clearStageModel();
     clearAssets();
-    for (const name of usedImages(project)) {
+    for (const name of projectAssets(project)) {
       const image = await readBinary(dir, 'assets/' + name);
       if (image) addAsset(name, image);
     }
@@ -359,6 +440,7 @@ export async function openProject() {
       selectedKeyframe: null,
       selectedSection: project.sections[0]?.id ?? null,
       modelBuffer: model,
+      modelResources: resources,
       modelVersion: get().modelVersion + 1,
       dir,
       unsaved: false,
@@ -392,6 +474,7 @@ export function newProject() {
     selectedKeyframe: null,
     selectedSection: project.sections[0].id,
     modelBuffer: null,
+    modelResources: {},
     modelVersion: get().modelVersion + 1,
     dir: null,
     unsaved: false,
@@ -427,11 +510,15 @@ const coreSources = Object.fromEntries(Object.entries(coreModules).map(([path, s
 
 export async function exportProject(target: 'vanilla' | 'astro') {
   const { project, modelBuffer, assets } = get();
-  const { files, modelPath, imagePaths } = buildExport(project, target, coreSources);
+  const { files, binaries } = buildExport(project, target, coreSources);
   const all: FileMap = { ...files };
-  if (modelPath && modelBuffer) all[modelPath] = new Uint8Array(modelBuffer);
-  for (const [name, path] of Object.entries(imagePaths)) {
-    if (assets[name]) all[path] = new Uint8Array(assets[name].data);
+  for (const { path, kind, name } of binaries) {
+    let data: ArrayBuffer | undefined;
+    if (kind === 'model') data = modelBuffer ?? undefined;
+    else if (kind === 'resource') data = get().modelResources[name];
+    else if (kind === 'draco') data = await (await fetch('./draco/' + name)).arrayBuffer();
+    else data = assets[name]?.data;
+    if (data) all[path] = new Uint8Array(data);
   }
 
   if (!canPickDirectory) {

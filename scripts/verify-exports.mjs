@@ -28,7 +28,7 @@ const section = (id, name, extra = []) => ({
 });
 
 const project = {
-  formatVersion: 5,
+  formatVersion: 6,
   name: 'Export-Test',
   model: { file: 'sample.glb', stats: null },
   base: {
@@ -44,6 +44,8 @@ const project = {
     'node:model.scale': [1, 1, 1],
     'lookAt:la1.target': 'pointer',
     'lookAt:la1.strength': 1,
+    // Animationsclip an die Timeline gebunden
+    'clip:Knopf drehen.time': 0,
     'option:vgA.value': 'oGriff',
     'option:vgL.value': 'oOrange',
   },
@@ -168,6 +170,7 @@ const project = {
         'keyLight.color': { value: '#ff9a3c', scope: 'inherit' },
       },
     },
+    { id: 'k5', sectionId: 'b', t: 1, values: { 'clip:Knopf drehen.time': { value: 0.5, scope: 'inherit' } } },
     { id: 'k4', sectionId: 'c', t: 0.3, values: { 'option:vgA.value': { value: 'oOhne', scope: 'inherit', transition: 0.2 } } },
     { id: 'k3', sectionId: 'c', t: 0.5, values: { 'lookAt:la1.target': { value: 'camera', scope: 'inherit' } } },
     { id: 'k2', sectionId: 'c', t: 1, values: { 'node:model.rotation': { value: [0, 6.2832, 0], scope: 'inherit' } } },
@@ -189,19 +192,52 @@ const project = {
   ],
   framing: { desktop: { shiftX: 12 }, tablet: {}, mobile: { shiftX: 0, shiftY: -12, zoom: 0.8 } },
   budgets: {},
-  settings: { background: '#14161a', scrollSmoothing: 0 },
+  settings: {
+    background: '#14161a',
+    scrollSmoothing: 0,
+    environment: { file: 'himmel.hdr', showBackground: true, rotation: 40, backgroundIntensity: 1, backgroundBlur: 0.3 },
+    poster: 'poster.png',
+    reducedMotion: 'respect',
+  },
 };
+
+/** Ein kleines HDRI (Radiance .hdr, unkomprimiert): heller Himmel oben, dunkler Boden unten. */
+function makeHdr(width = 64, height = 32) {
+  const pixels = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const sky = y < height / 2;
+      const color = sky ? [0.6, 0.9, 1.8] : [0.25, 0.2, 0.15];
+      const exponent = Math.ceil(Math.log2(Math.max(...color)));
+      const scale = 256 / 2 ** exponent;
+      pixels.set([...color.map((c) => Math.min(255, Math.floor(c * scale))), exponent + 128], (y * width + x) * 4);
+    }
+  }
+  return Buffer.concat([Buffer.from(`#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y ${height} +X ${width}\n`), pixels]);
+}
+
+/** 1 × 1 Pixel als PNG, Platzhalter für das Posterbild. */
+const POSTER = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+
+function binary(kind, name) {
+  if (kind === 'model' || kind === 'resource') return readFileSync(join(root, 'public', name));
+  if (kind === 'env') return makeHdr();
+  if (kind === 'draco') return readFileSync(join(root, 'public/draco', name));
+  return POSTER;
+}
 
 for (const target of ['vanilla', 'astro']) {
   const out = join(root, '.verify', target);
   rmSync(out, { recursive: true, force: true });
-  const { files, modelPath } = buildExport(project, target, coreSources);
+  const { files, binaries } = buildExport(project, target, coreSources);
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(out, path)), { recursive: true });
     writeFileSync(join(out, path), content);
   }
-  mkdirSync(dirname(join(out, modelPath)), { recursive: true });
-  writeFileSync(join(out, modelPath), readFileSync(join(root, 'public/sample.glb')));
+  for (const { path, kind, name } of binaries) {
+    mkdirSync(dirname(join(out, path)), { recursive: true });
+    writeFileSync(join(out, path), binary(kind, name));
+  }
   console.log(`\n== ${target}: npm install && npm run build ==`);
   execSync('npm install --no-audit --no-fund && npm run build', { cwd: out, stdio: 'inherit' });
 }

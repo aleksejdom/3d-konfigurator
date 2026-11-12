@@ -102,6 +102,61 @@ export async function pickFile(extensions: string[], label = 'Datei'): Promise<{
   });
 }
 
+export interface PickedModel {
+  name: string;
+  data: ArrayBuffer;
+  /** Liest eine Begleitdatei eines .gltf (Puffer, Textur), relativ zur Modelldatei. */
+  readSibling: (uri: string) => Promise<ArrayBuffer | null>;
+}
+
+/**
+ * Modell auswählen. Ein .gltf verweist auf Begleitdateien: In der Desktop-App werden sie aus demselben
+ * Ordner gelesen, im Browser wählt man sie zusammen mit dem .gltf aus.
+ */
+export async function pickModel(): Promise<PickedModel | null> {
+  if (isTauri) {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const path = await open({ multiple: false, filters: [{ name: '3D-Modell', extensions: ['glb', 'gltf'] }] });
+    if (typeof path !== 'string') return null;
+    const fs = await import('@tauri-apps/plugin-fs');
+    const { dirname, join } = await import('@tauri-apps/api/path');
+    const toBuffer = (bytes: Uint8Array) => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const folder = await dirname(path);
+    return {
+      name: path.split(/[\\/]/).pop() || 'modell.glb',
+      data: toBuffer(await fs.readFile(path)),
+      readSibling: async (uri) => {
+        try {
+          return toBuffer(await fs.readFile(await join(folder, ...uri.split('/'))));
+        } catch {
+          return null;
+        }
+      },
+    };
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = '.glb,.gltf,.bin,.png,.jpg,.jpeg,.webp,.ktx2';
+    input.addEventListener('change', async () => {
+      const files = [...(input.files ?? [])];
+      const main = files.find((file) => /\.(glb|gltf)$/i.test(file.name));
+      if (!main) return resolve(null);
+      resolve({
+        name: main.name,
+        data: await main.arrayBuffer(),
+        readSibling: async (uri) => {
+          const file = files.find((f) => f.name === uri.split('/').pop());
+          return file ? file.arrayBuffer() : null;
+        },
+      });
+    });
+    input.addEventListener('cancel', () => resolve(null));
+    input.click();
+  });
+}
+
 /** Ersatzweg ohne Ordnerzugriff: alle Dateien als ZIP herunterladen. */
 export function downloadZip(name: string, files: FileMap): void {
   const entries: Record<string, Uint8Array> = {};

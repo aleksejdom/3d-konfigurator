@@ -6,6 +6,9 @@ import { escapeHtml, renderCss, renderFreeLayer, renderHotspotLayer, renderSecti
 
 const VERSIONS = { three: '^0.187.0', gsap: '^3.15.1', vite: '^8.3.8', astro: '^7.4.11' };
 
+/** Dateien des Draco-Decoders (aus three/examples/jsm/libs/draco/gltf). */
+export const DRACO_FILES = ['draco_decoder.wasm', 'draco_wasm_wrapper.js'];
+
 const MAIN_JS = `import project from './project.json';
 import { startPlayer } from './scene/player.js';
 
@@ -15,6 +18,7 @@ startPlayer({
   project,
   canvas,
   modelUrl: canvas.dataset.model || undefined,
+  envUrl: canvas.dataset.env || undefined,
 });
 `;
 
@@ -103,20 +107,38 @@ function slug(name) {
  * @param {import('../core/types').Project} project
  * @param {'vanilla' | 'astro'} target
  * @param {Record<string, string>} coreSources Dateiname -> Quelltext der Dateien aus src/core
- * @returns {{ files: Record<string, string>, modelPath: string | null, imagePaths: Record<string, string> }}
+ * @returns {{ files: Record<string, string>, binaries: { path: string, kind: 'model' | 'resource' | 'image' | 'env' | 'draco', name: string }[], modelPath: string | null, imagePaths: Record<string, string> }}
  *   files: Pfad -> Textinhalt. modelPath: Pfad, unter dem die Modelldatei abzulegen ist.
+ *   binaries: alle Binärdateien mit Zielpfad (Modell, Begleitdateien, Bilder, Umgebung, Draco-Decoder).
  *   imagePaths: Bildname -> Pfad, unter dem das Bild abzulegen ist.
  */
 export function buildExport(project, target, coreSources) {
   const modelFile = project.model.file;
-  const modelAttr = modelFile ? ` data-model="model/${escapeHtml(encodeURI(modelFile))}"` : '';
+  const environment = project.settings.environment;
+  const poster = project.settings.poster;
+  const modelAttr =
+    (modelFile ? ` data-model="model/${escapeHtml(encodeURI(modelFile))}"` : '') +
+    (environment.file ? ` data-env="env/${escapeHtml(encodeURI(environment.file))}"` : '');
   const title = escapeHtml(project.name);
   const files = {};
   const sceneDir = 'src/scene/';
   const imagePaths = Object.fromEntries(usedImages(project).map((name) => [name, `public/images/${name}`]));
   const freeLayer = renderFreeLayer(project, { indent: '    ' });
   const hotspotLayer = renderHotspotLayer(project, { indent: '    ' });
-  const body = `    <canvas id="stage"${modelAttr} aria-hidden="true"></canvas>
+  // Das Posterbild liegt über der Szene, bis das Modell zum ersten Mal gerendert ist.
+  const posterTag = poster ? `\n    <img class="poster" src="images/${escapeHtml(encodeURI(poster))}" alt="">` : '';
+
+  /** Binärdateien, die der Editor (oder das Prüfskript) an ihren Platz im Export kopiert. */
+  const binaries = [
+    ...(modelFile ? [{ path: `public/model/${modelFile}`, kind: 'model', name: modelFile }] : []),
+    ...(project.model.resources || []).map((name) => ({ path: `public/model/${name}`, kind: 'resource', name })),
+    ...Object.entries(imagePaths).map(([name, path]) => ({ path, kind: 'image', name })),
+    ...(environment.file ? [{ path: `public/env/${environment.file}`, kind: 'env', name: environment.file }] : []),
+    // Der Draco-Decoder wird nur mitgegeben, wenn das Modell ihn braucht.
+    ...(project.model.stats && project.model.stats.draco ? DRACO_FILES.map((name) => ({ path: `public/draco/${name}`, kind: 'draco', name })) : []),
+  ];
+
+  const body = `    <canvas id="stage"${modelAttr} aria-hidden="true"></canvas>${posterTag}
     <main class="page">
 ${renderSections(project, { indent: '      ' })}
     </main>${freeLayer ? '\n' + freeLayer : ''}${hotspotLayer ? '\n' + hotspotLayer : ''}`;
@@ -184,7 +206,7 @@ ${dataNote(project)}
 ${sceneNote().replace(/`project\.json`/, '`src/project.json`').replace(/`scene\//g, '`src/scene/')}
 Die Seite selbst liegt in \`index.html\`, die Gestaltung in \`styles.css\`, das Modell in \`public/model\`, Bilder in \`public/images\`.
 `;
-    return { files, modelPath: modelFile ? `public/model/${modelFile}` : null, imagePaths };
+    return { files, binaries, modelPath: modelFile ? `public/model/${modelFile}` : null, imagePaths };
   }
 
   // ---------- Astro ----------
@@ -251,5 +273,5 @@ ${sceneNote().replace(/`project\.json`/, '`src/project.json`').replace(/`scene\/
 Die Seite selbst liegt in \`src/pages/index.astro\`, die Gestaltung in \`src/styles/page.css\`,
 das Modell in \`public/model\`, Bilder in \`public/images\`.
 `;
-  return { files, modelPath: modelFile ? `public/model/${modelFile}` : null, imagePaths };
+  return { files, binaries, modelPath: modelFile ? `public/model/${modelFile}` : null, imagePaths };
 }

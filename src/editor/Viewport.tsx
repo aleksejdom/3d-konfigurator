@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { bindComponents, resolveFraming } from '../core/components.js';
-import { applyFraming, applyState, createStage, readProp, renderStage, resizeStage, setBackground } from '../core/stage.js';
+import { applyClipTimes, applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, readProp, renderStage, resizeStage } from '../core/stage.js';
 import { splitPos } from '../core/timeline.js';
 import type { Breakpoint, Scope, Value } from '../core/types';
 import { positionHotspots } from '../core/interaction.js';
@@ -15,7 +15,7 @@ import { addComponent, removeComponent, setStyle } from './components';
 import { addHotspot } from './interactions';
 import { SCOPE_LABELS, lastScope, posLabel, propGroups } from './labels';
 import { currentState, editor, sameValue } from './stage';
-import { discardDraft, importModel, loadSampleModel, merken, setDraft, useEditor } from './store';
+import { discardDraft, importModel, loadSampleModel, merken, notify, setDraft, useEditor } from './store';
 
 type GizmoMode = 'translate' | 'rotate' | 'scale';
 const MODE_FIELD: Record<GizmoMode, string> = { translate: 'position', rotate: 'rotation', scale: 'scale' };
@@ -35,6 +35,7 @@ export function Viewport() {
   const modeRef = useRef<GizmoMode>('translate');
   const [mode, setMode] = useState<GizmoMode>('translate');
   const [merkenOpen, setMerkenOpen] = useState(false);
+  const [environmentVersion, setEnvironmentVersion] = useState(0);
   const [available, setAvailable] = useState({ width: 1280, height: 720 });
 
   const project = useEditor((s) => s.project);
@@ -172,14 +173,31 @@ export function Viewport() {
   useEffect(() => {
     const { stage, orbit } = editor;
     if (!stage || !orbit) return;
-    setBackground(stage, project.settings.background);
+    applyEnvironment(stage, project.settings);
     applyFraming(stage, resolveFraming(project, breakpoint));
     applyState(stage, currentState(project, pos, draft));
+    // Animationsclips, die an die Timeline gebunden sind, auf ihre Position an dieser Stelle setzen.
+    applyClipTimes(stage);
     // Varianten, Materialien und Sichtbarkeit so zeigen, wie die Timeline sie an dieser Stelle wählt.
     applyOptions(stage, project, timelineWeights(stage, project), levelTints(project, resolveFields(project, testData(project))));
     orbit.target.copy(stage.target);
     orbit.update();
-  }, [project, pos, draft, modelVersion, breakpoint]);
+  }, [project, pos, draft, modelVersion, breakpoint, environmentVersion]);
+
+  // HDRI oder Panorama laden, sobald sich die Datei der Umgebung ändert (auch nach Undo oder Öffnen).
+  const environmentFile = project.settings.environment.file;
+  const environmentUrl = useEditor((s) => (environmentFile ? s.assets[environmentFile]?.url : undefined));
+  useEffect(() => {
+    const stage = editor.stage;
+    if (!stage) return;
+    let cancelled = false;
+    loadEnvironment(stage, environmentUrl ?? null, environmentFile ?? '')
+      .catch(() => notify('Die Umgebung konnte nicht gelesen werden. Unterstützt werden .hdr sowie Panoramen als JPG, PNG oder WebP.'))
+      .finally(() => !cancelled && setEnvironmentVersion((n) => n + 1));
+    return () => {
+      cancelled = true;
+    };
+  }, [environmentFile, environmentUrl]);
 
   // Anfasser an das ausgewählte Bauteil hängen.
   useEffect(() => {

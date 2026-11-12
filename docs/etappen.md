@@ -57,9 +57,35 @@ Deckt Abnahmekriterium 4 ab.
 - Animationsclips aus dem Modell werden erkannt und lassen sich per Aktion abspielen
 - Projektformat Version 4; ältere Projekte werden beim Öffnen umgestellt
 
-## Noch offen
+## Etappe 5: Digitaler Zwilling (erledigt, Stand 12.11.2026)
 
-| Etappe | Inhalt | Abnahmekriterium |
-|---|---|---|
-| 5 | Digitaler Zwilling: typisierte Datenbindungen, Testdaten, REST/JSON, WebSocket/SSE, Verbindungszustände | 5 |
-| 6 | HDRI/Skybox, Animationsclips an die Scroll-Timeline binden, Draco-Kompression, glTF mit Begleitdateien, Posterbild, reduzierte Bewegung, Vorschau-Link und QR-Code fürs WLAN, Messung auf echtem Gerät | 1 (Rest) |
+Deckt Abnahmekriterium 5 ab.
+
+- Typisierte Datenfelder: Zahl (Einheit, Nachkommastellen, Grenzwerte für Warnung und Alarm), Status (Zustände mit Anzeigetext und Stufe), Ja/Nein, Text. Jedes Feld liest seinen Wert über einen Pfad wie `motor.rpm`
+- Reaktionen am Modell: Bauteile in der Farbe der Stufe einfärben, Bauteil mit dem Messwert drehen, Tempo eines Animationsclips steuern
+- Neue Komponenten: Messwert, Statusanzeige, Verbindungsstatus. Karten, Infoboxen und Hotspots zeigen die Stufe eines Felds als Farbe
+- Testdaten: Testwert pro Feld; Viewport und Vorschau reagieren sofort. In der Vorschau lassen sich Testwerte ändern, ohne das Projekt zu ändern
+- Live-Quellen (nur lesend): REST/JSON mit Abfrageintervall, Server-Sent Events, WebSocket. Zustände „Verbunden“, „Daten veraltet“, „Offline“ mit Zeitpunkt der letzten Aktualisierung; der letzte Stand bleibt sichtbar und wird gekennzeichnet
+- Zugangsdaten stehen nie im Projekt oder Export. Die Startanleitung des Exports beschreibt Datenquelle, erwartetes JSON und den Weg über ein eigenes Backend
+- `npm run demo:data` startet eine Beispiel-Datenquelle mit REST, SSE und WebSocket
+- Projektformat Version 5
+
+## Etappe 6: Umgebung, Ladephase, Vorschau auf dem Gerät (erledigt, Stand 12.11.2026)
+
+Schließt Abnahmekriterium 1 ab.
+
+- HDRI (.hdr) oder Panoramabild als Umgebung für Licht und Reflexionen. Hintergrund (Farbe oder Umgebung, Helligkeit, Unschärfe), Stärke der Beleuchtung und Ausrichtung sind getrennt einstellbar
+- Animationsclips des Modells lassen sich an die Scroll-Timeline binden und laufen mit dem Scrollen vor und zurück
+- Draco-komprimierte Modelle; der Decoder wird nur bei Bedarf in den Export gelegt
+- glTF mit Begleitdateien (Puffer, Texturen): In der Desktop-App werden sie aus demselben Ordner gelesen, im Browser zusammen mit der .gltf-Datei ausgewählt
+- Posterbild für die Ladephase, aus der aktuellen Ansicht erzeugt oder als Bilddatei
+- Reduzierte Bewegung: Wünscht das Gerät des Besuchers weniger Bewegung, entfallen Dämpfung, Einblendungen, Look At, Follow und Kamerafahrten. In der Vorschau zuschaltbar
+- Vorschau-Link und QR-Code fürs lokale WLAN (nur in der installierten Desktop-App): Die App liefert die Vorschau über einen eigenen kleinen Webserver aus. Das Smartphone meldet die Zeit bis zum ersten sichtbaren Render zurück; sie wird als Messung auf echtem Gerät gekennzeichnet
+- Projektformat Version 6
+
+## Bekannte Grenzen
+
+- Texturen im Format KTX2/Basis werden nicht geladen
+- Bauteile mit Klick-Aktion sind nur per Maus oder Tap erreichbar; für die Tastatur braucht es zusätzlich einen Button mit derselben Aktion
+- Der Vorschau-Link fürs WLAN funktioniert nur in der gebauten Desktop-App, nicht mit `npm run dev` oder `npm run tauri dev`
+- Animationsclips, die per Aktion oder Messwert laufen, spielen in Vorschau und Export, nicht im Editor-Viewport

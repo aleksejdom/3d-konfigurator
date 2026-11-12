@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 
 export function createStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -17,7 +19,8 @@ export function createStage(canvas) {
 
   // Umgebungslicht: eine neutrale Studio-Umgebung, die auch Metall und Glas Reflexionen gibt.
   const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const studioEnvironment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = studioEnvironment;
   pmrem.dispose();
 
   const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -43,9 +46,16 @@ export function createStage(canvas) {
     /** Kugel um das geladene Modell, für Kameraabstand und Hilfslinien */
     bounds: new THREE.Sphere(new THREE.Vector3(), 1),
     /** Werte ohne eigenes 3D-Objekt: Ziel und Stärke von Look At ("lookAt:<ID>.target"), Wahl einer Variantengruppe ("option:<ID>.value") */
+    /** @type {Record<string, any>} */
     params: {},
+    studioEnvironment,
+    /** Geladenes HDRI oder Panorama, sonst null */
+    /** @type {THREE.Texture | null} */
+    environmentTexture: null,
     /** Animationsclips des geladenen Modells und ihr Abspieler */
+    /** @type {THREE.AnimationClip[]} */
     clips: [],
+    /** @type {THREE.AnimationMixer | null} */
     mixer: null,
     /** Kameraausschnitt des aktuellen Breakpoints */
     framing: { zoom: 1, shiftX: 0, shiftY: 0 },
@@ -88,6 +98,42 @@ export function renderStage(stage) {
 
 export function setBackground(stage, color) {
   stage.scene.background = new THREE.Color(color);
+}
+
+/**
+ * Lädt ein HDRI (.hdr) oder ein Panoramabild als Umgebung. Ohne Adresse gilt wieder die Studio-Umgebung.
+ * @param {string | null} url
+ * @param {string} [name] Dateiname, falls die Adresse keine Endung hat (Blob-Adresse)
+ */
+export async function loadEnvironment(stage, url, name = url || '') {
+  if (stage.environmentTexture) stage.environmentTexture.dispose();
+  stage.environmentTexture = null;
+  if (!url) return;
+  const texture = /\.hdr$/i.test(name) ? await new HDRLoader().loadAsync(url) : await new THREE.TextureLoader().loadAsync(url);
+  if (!/\.hdr$/i.test(name)) texture.colorSpace = THREE.SRGBColorSpace;
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  stage.environmentTexture = texture;
+}
+
+/**
+ * Überträgt Hintergrund und Umgebung aus den Projekteinstellungen auf die Szene.
+ * Beleuchtung, Hintergrund und Ausrichtung sind getrennt einstellbar.
+ * @param {import('./types').Project['settings']} settings
+ */
+export function applyEnvironment(stage, settings) {
+  const environment = settings.environment;
+  const texture = stage.environmentTexture;
+  stage.scene.environment = texture || stage.studioEnvironment;
+  const rotation = texture ? (environment.rotation * Math.PI) / 180 : 0;
+  stage.scene.environmentRotation.set(0, rotation, 0);
+  stage.scene.backgroundRotation.set(0, rotation, 0);
+  if (texture && environment.showBackground) {
+    stage.scene.background = texture;
+    stage.scene.backgroundIntensity = environment.backgroundIntensity;
+    stage.scene.backgroundBlurriness = environment.backgroundBlur;
+  } else {
+    setBackground(stage, settings.background);
+  }
 }
 
 // ---------- Modell laden ----------
@@ -147,16 +193,32 @@ function collectStats(root, fileSize) {
 }
 
 /**
- * Lädt ein GLB (oder ein glTF mit eingebetteten Daten) aus einem ArrayBuffer.
+ * Lädt ein GLB oder glTF aus einem ArrayBuffer.
+ * @param {object} [options]
+ * @param {string} [options.path] Ordner der Modelldatei; dort liegen die Begleitdateien eines .gltf
+ * @param {(name: string) => string | undefined} [options.resourceUrl] Adresse einer Begleitdatei (Editor: aus dem Speicher)
+ * @param {string} [options.dracoPath] Ordner mit dem Draco-Decoder, Standard "draco/"
  * @returns {Promise<import('./types').ModelStats>}
  */
-export function loadModel(stage, buffer) {
-  const loader = new GLTFLoader();
+export function loadModel(stage, buffer, options = {}) {
+  const manager = new THREE.LoadingManager();
+  if (options.resourceUrl) {
+    manager.setURLModifier((url) => {
+      if (/^(data|blob):/.test(url)) return url;
+      const name = decodeURIComponent(url.replace(/^\.\//, ''));
+      return options.resourceUrl(name) || options.resourceUrl(name.split('/').pop()) || url;
+    });
+  }
+  const loader = new GLTFLoader(manager);
   loader.setMeshoptDecoder(MeshoptDecoder);
+  // Der Draco-Decoder wird erst geladen, wenn ein Modell ihn braucht.
+  const draco = new DRACOLoader(manager);
+  draco.setDecoderPath(options.dracoPath || 'draco/');
+  loader.setDRACOLoader(draco);
   return new Promise((resolve, reject) => {
     loader.parse(
       buffer,
-      '',
+      options.path || '',
       (gltf) => {
         stage.model.clear();
         stage.model.add(gltf.scene);
@@ -171,7 +233,13 @@ export function loadModel(stage, buffer) {
         stage.camera.far = radius * 200;
         stage.camera.updateProjectionMatrix();
 
-        resolve({ ...collectStats(gltf.scene, buffer.byteLength), clips: stage.clips.map((clip) => clip.name) });
+        const extensions = gltf.parser.json.extensionsUsed || [];
+        draco.dispose();
+        resolve({
+          ...collectStats(gltf.scene, buffer.byteLength),
+          clips: stage.clips.map((clip) => clip.name),
+          draco: extensions.includes('KHR_draco_mesh_compression'),
+        });
       },
       reject,
     );
@@ -201,7 +269,7 @@ export function applyState(stage, state) {
       stage.scene.environmentIntensity = value;
       continue;
     }
-    if (target.startsWith('lookAt:') || target.startsWith('option:')) {
+    if (target.startsWith('lookAt:') || target.startsWith('option:') || target.startsWith('clip:')) {
       stage.params[prop] = value;
       continue;
     }
@@ -222,6 +290,7 @@ export function applyState(stage, state) {
 export function readProp(stage, prop) {
   const [target, field] = splitProp(prop);
   if (target === 'ambient') return stage.scene.environmentIntensity;
+  if (target.startsWith('clip:')) return stage.params[prop];
   if (target.startsWith('lookAt:') || target.startsWith('option:')) {
     const value = stage.params[prop];
     // Mitten in einem Übergang zwischen zwei Zielen gilt das mit dem größeren Gewicht.
@@ -274,4 +343,27 @@ export function defaultBase(stage) {
     'node:model.rotation': [0, 0, 0],
     'node:model.scale': [1, 1, 1],
   };
+}
+
+/** Name der Timeline-Eigenschaft für die Position eines Animationsclips (0 = Anfang, 1 = Ende). */
+export const clipProp = (name) => `clip:${name}.time`;
+
+/**
+ * Stellt Animationsclips auf die Position, die die Timeline vorgibt ("clip:<Name>.time").
+ * So läuft eine Animation des Modells mit dem Scrollen vor und zurück.
+ * @param {Set<string>} [skip] Clips, die gerade frei laufen (per Aktion oder Messwert gestartet)
+ */
+export function applyClipTimes(stage, skip = new Set()) {
+  if (!stage.mixer) return;
+  let any = false;
+  for (const clip of stage.clips) {
+    const time = stage.params[clipProp(clip.name)];
+    if (time === undefined || skip.has(clip.name)) continue;
+    const action = stage.mixer.clipAction(clip);
+    action.play();
+    action.paused = true;
+    action.time = Math.min(1, Math.max(0, time)) * clip.duration;
+    any = true;
+  }
+  if (any) stage.mixer.update(0);
 }

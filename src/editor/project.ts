@@ -1,6 +1,6 @@
 import type { Budget, Component, ComponentAnimation, ComponentType, Project, Section, ProjectData } from '../core/types';
 
-export const FORMAT_VERSION = 5;
+export const FORMAT_VERSION = 6;
 
 export const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -80,7 +80,7 @@ export function createProject(): Project {
     data: createData(),
     framing: { desktop: {}, tablet: {}, mobile: {} },
     budgets: structuredClone(DEFAULT_BUDGETS),
-    settings: { background: '#14161a', scrollSmoothing: 0 },
+    settings: { background: '#14161a', scrollSmoothing: 0, environment: { file: null, showBackground: false, rotation: 0, backgroundIntensity: 1, backgroundBlur: 0 }, poster: null, reducedMotion: 'respect' },
   };
 }
 
@@ -124,7 +124,8 @@ export function migrateProject(data: unknown): Project {
       desktop: { ...fresh.budgets.desktop, ...raw.budgets?.desktop },
       mobile: { ...fresh.budgets.mobile, ...raw.budgets?.mobile },
     },
-    settings: { ...fresh.settings, ...raw.settings },
+    // environment, poster, reducedMotion seit Version 6
+    settings: { ...fresh.settings, ...raw.settings, environment: { ...fresh.settings.environment, ...raw.settings?.environment } },
     framing: { ...fresh.framing, ...raw.framing },
     sections: raw.sections ?? fresh.sections,
     keyframes: raw.keyframes ?? [],

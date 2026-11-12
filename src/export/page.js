@@ -413,6 +413,26 @@ export function renderCss(project) {
   display: block;
 }
 
+/* Posterbild während des Ladens. Das Skript setzt .is-ready, sobald das Modell zu sehen ist. */
+.poster {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+
+.is-ready .poster {
+  opacity: 0;
+}
+
+/* Reduzierte Bewegung: keine weichen Übergänge in der Oberfläche. */
+.reduced-motion * {
+  transition: none !important;
+}
+
 /* Breakpoints richten sich nach der Breite dieses Containers (Container Queries). */
 .page {
   position: relative;
@@ -882,5 +902,6 @@ export function usedImages(project) {
   };
   project.sections.forEach((section) => section.components.forEach(visit));
   project.templates.forEach((template) => visit(template.root));
+  if (project.settings.poster) names.add(project.settings.poster);
   return [...names];
 }
