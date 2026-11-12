@@ -84,6 +84,18 @@ export function HotspotInspector({ id }: { id: string }) {
           ))}
         </select>
       </Field>
+      {project.data.fields.length > 0 && (
+        <Field label="Datenfeld (färbt den Punkt nach Stufe)">
+          <select value={hotspot.fieldId ?? ''} onChange={(e) => updateHotspot(id, { fieldId: e.target.value || undefined })}>
+            <option value="">Keines</option>
+            {project.data.fields.map((field) => (
+              <option key={field.id} value={field.id}>
+                {field.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <h4>Detailansicht · {BREAKPOINT_LABELS[breakpoint]}</h4>
       <p className="hint view-status">Kameraansicht: {status}</p>

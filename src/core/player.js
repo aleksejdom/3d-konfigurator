@@ -9,6 +9,7 @@ import { measureSections, scrollToPos } from './scroll.js';
 import { bindComponents, breakpointFor, resolveFraming } from './components.js';
 import { createInteraction } from './interaction.js';
 import { createConfigurator } from './configurator.js';
+import { createDataBindings } from './data.js';
 import { applyFraming, applyState, createStage, loadModel, renderStage, resizeStage, setBackground } from './stage.js';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -29,8 +30,9 @@ async function simulateDownload(bytes, startedAt, throttle) {
  * @param {ArrayBuffer} [options.modelBuffer] Modell direkt aus dem Speicher (Editor-Vorschau)
  * @param {{latencyMs: number, mbps: number}} [options.throttle] simulierte Verbindung
  * @param {(ms: number) => void} [options.onFirstRender] Zeit vom Seitenstart bis zum ersten Bild mit Modell
+ * @param {'test' | 'live'} [options.dataMode] Digitaler Zwilling: Testdaten oder Live-Quelle erzwingen (Editor-Vorschau)
  */
-export async function startPlayer({ project, canvas, modelUrl, modelBuffer, throttle, onFirstRender }) {
+export async function startPlayer({ project, canvas, modelUrl, modelBuffer, throttle, onFirstRender, dataMode }) {
   const stage = createStage(canvas);
   setBackground(stage, project.settings.background);
 
@@ -46,6 +48,8 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     openHotspot: interaction.openHotspot,
     closeDetail: interaction.closeDetail,
   });
+  // Digitaler Zwilling: Daten der Quelle auf Modell und Oberfläche übertragen.
+  const data = createDataBindings({ stage, project, root: document, configurator, mode: dataMode });
   let layout = [];
   let targetPos = 0;
   let currentPos = 0;
@@ -87,10 +91,11 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     }
     // Mit Hotspots, Look At oder Follow wird jedes Bild neu gerechnet, sonst nur nach dem Scrollen,
     // nach einer Wahl im Konfigurator oder solange ein Animationsclip läuft.
-    if (needsRender || interaction.live || configurator.live) {
+    if (needsRender || interaction.live || configurator.live || data.live) {
       needsRender = false;
       interaction.reset();
       applyState(stage, evaluate(project, currentPos));
+      data.update(dt);
       configurator.update(dt, currentPos);
       interaction.update(dt, currentPos);
       updateComponents(currentPos);
@@ -115,5 +120,6 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     requestAnimationFrame(() => onFirstRender && onFirstRender(performance.now()));
   }
 
-  return { stage, interaction, configurator };
+  data.feed.start();
+  return { stage, interaction, configurator, data };
 }

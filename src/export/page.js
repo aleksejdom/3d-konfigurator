@@ -27,6 +27,7 @@ const CONTENT_KEYS = ['text', 'href', 'src', 'alt', 'action'];
  *   id       eindeutige ID auf der Seite (bei Instanz-Kindern "<Instanz>--<Vorlagen-Element>")
  *   classes  IDs, deren CSS-Regeln gelten (bei Instanzen: Vorlage für das Layout, Instanz für die Position)
  */
+const fieldOf = (project, node) => (node.fieldId && project.data ? project.data.fields.find((field) => field.id === node.fieldId) : undefined);
 const groupOf = (project, node) => (node.groupId ? (project.variantGroups || []).find((group) => group.id === node.groupId) : undefined);
 
 export function resolveComponent(project, component) {
@@ -34,6 +35,7 @@ export function resolveComponent(project, component) {
     return {
       ...component,
       group: groupOf(project, component),
+      field: fieldOf(project, component),
       classes: [component.id],
       children: (component.children || []).map((child) => resolveComponent(project, child)).filter(Boolean),
     };
@@ -43,7 +45,7 @@ export function resolveComponent(project, component) {
 
   const fill = (node, isRoot) => {
     const content = isRoot ? {} : (component.content && component.content[node.id]) || {};
-    const resolved = { ...node, group: groupOf(project, node) };
+    const resolved = { ...node, group: groupOf(project, node), field: fieldOf(project, node) };
     for (const key of CONTENT_KEYS) if (content[key] !== undefined) resolved[key] = content[key];
     resolved.id = isRoot ? component.id : `${component.id}--${node.id}`;
     resolved.classes = isRoot ? [node.id, component.id] : [node.id];
@@ -152,6 +154,9 @@ function renderNode(node, context, indent, depth) {
     attributes += ` data-hotspot="${escapeHtml(node.hotspotId)}" data-for="${escapeHtml(context.sectionId)}"`;
     if (node.anchorMode === 'open') attributes += ' data-anchor-mode="open"';
   }
+  // Digitaler Zwilling: Das Skript trägt Wert, Stufe (data-level) und "veraltet" (data-stale) ein.
+  if (node.field) attributes += ` data-field="${escapeHtml(node.field.id)}"`;
+  if (node.type === 'connection') attributes += ' data-connection="test" role="status"';
   const action = actionValue(node);
   if (action) attributes += ` data-action="${escapeHtml(action)}"`;
   if (context.editor) attributes += ` data-c="${escapeHtml(node.id)}"`;
@@ -161,6 +166,34 @@ function renderNode(node, context, indent, depth) {
     const children = node.children.map((child) => renderNode(child, context, indent + '  ', depth + 1));
     if (action) attributes += ' role="button" tabindex="0"';
     return [`${indent}<div ${attributes}>`, ...children, `${indent}</div>`].join('\n');
+  }
+  if (node.type === 'value') {
+    const field = node.field;
+    const unit = field && field.unit ? ` <span class="value-unit">${escapeHtml(field.unit)}</span>` : '';
+    return [
+      `${indent}<div ${attributes}>`,
+      `${indent}  <span class="value-label">${escapeHtml(field ? field.label : 'Kein Datenfeld gewählt')}</span>`,
+      `${indent}  <span class="value-reading"><span data-field-value>–</span>${unit}</span>`,
+      `${indent}</div>`,
+    ].join('\n');
+  }
+  if (node.type === 'status') {
+    return [
+      `${indent}<div ${attributes}>`,
+      `${indent}  <span class="status-dot" aria-hidden="true"></span>`,
+      `${indent}  <span class="status-label">${escapeHtml(node.field ? node.field.label : 'Kein Datenfeld gewählt')}</span>`,
+      `${indent}  <strong data-field-text>–</strong>`,
+      `${indent}</div>`,
+    ].join('\n');
+  }
+  if (node.type === 'connection') {
+    return [
+      `${indent}<div ${attributes}>`,
+      `${indent}  <span class="status-dot" aria-hidden="true"></span>`,
+      `${indent}  <span data-connection-text>Testdaten</span>`,
+      `${indent}  <span class="connection-time">· Stand <time data-connection-time>–</time></span>`,
+      `${indent}</div>`,
+    ].join('\n');
   }
   if (node.type === 'select') return renderSelect(node, attributes, indent);
   if (node.type === 'slider') return renderSlider(node, attributes, indent);
@@ -251,7 +284,8 @@ export function renderHotspotLayer(project, options = {}) {
   const buttons = project.hotspots.map((hotspot) => {
     const label = hotspot.label ? `<span class="hotspot-label">${escapeHtml(hotspot.label)}</span>` : '';
     const scope = hotspot.sectionId ? ` data-for="${escapeHtml(hotspot.sectionId)}"` : '';
-    return `${indent}  <button type="button" class="hotspot" data-hotspot="${escapeHtml(hotspot.id)}"${scope} aria-label="${escapeHtml(hotspot.name)}"><span class="hotspot-dot"></span>${label}</button>`;
+    const field = hotspot.fieldId ? ` data-field="${escapeHtml(hotspot.fieldId)}"` : '';
+    return `${indent}  <button type="button" class="hotspot" data-hotspot="${escapeHtml(hotspot.id)}"${scope}${field} aria-label="${escapeHtml(hotspot.name)}"><span class="hotspot-dot"></span>${label}</button>`;
   });
   return [`${indent}<div class="hotspot-layer">`, ...buttons, `${indent}</div>`].join('\n');
 }
@@ -264,7 +298,7 @@ function isDark(hex) {
   return luminance < 0.5;
 }
 
-const DISPLAY = { card: 'flex', infobox: 'flex', button: 'inline-block', select: 'inline-block', slider: 'grid' };
+const DISPLAY = { card: 'flex', infobox: 'flex', button: 'inline-block', select: 'inline-block', slider: 'grid', value: 'grid', status: 'flex', connection: 'flex' };
 const ALIGN_ITEMS = { left: 'flex-start', center: 'center', right: 'flex-end' };
 const POSITION_KEYS = ['x', 'y', 'visible'];
 
@@ -343,6 +377,8 @@ export function renderCss(project) {
     sections.push(`/* Mobile */\n@container (max-width: ${BREAKPOINT_WIDTHS.mobile}px) {\n${ruleBlock(rules.mobile, '  ')}\n}`);
   }
 
+  const levels = (project.data && project.data.levelColors) || { ok: '#3ecf8e', warn: '#f5a623', alarm: '#e5484d', off: '#8b9099' };
+
   return `.site {
   --background: ${background};
   --text: ${dark ? '#f4f4f2' : '#16181c'};
@@ -351,6 +387,10 @@ export function renderCss(project) {
   --surface-line: ${dark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.1)'};
   --button-background: ${dark ? '#f4f4f2' : '#16181c'};
   --button-text: ${dark ? '#16181c' : '#f4f4f2'};
+  --level-ok: ${levels.ok};
+  --level-warn: ${levels.warn};
+  --level-alarm: ${levels.alarm};
+  --level-off: ${levels.off};
   margin: 0;
   background: var(--background);
   color: var(--text);
@@ -579,6 +619,112 @@ button.button {
 
 [data-action] {
   cursor: pointer;
+}
+
+/* ---------- Digitaler Zwilling ----------
+   Das Skript setzt data-level (ok, warn, alarm, off) und data-stale="true" bei veralteten Daten. */
+
+[data-level='ok'] {
+  --level: var(--level-ok);
+}
+
+[data-level='warn'] {
+  --level: var(--level-warn);
+}
+
+[data-level='alarm'] {
+  --level: var(--level-alarm);
+}
+
+[data-level='off'] {
+  --level: var(--level-off);
+}
+
+.card[data-level],
+.infobox[data-level] {
+  border-left: 5px solid var(--level);
+}
+
+.value {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.value-label,
+.status-label {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.value-reading {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.value[data-level='warn'] .value-reading,
+.value[data-level='alarm'] .value-reading {
+  color: var(--level);
+}
+
+.value-unit {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.status,
+.connection {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-dot {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--level, var(--text-muted));
+}
+
+.connection {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.connection[data-connection='connected'] .status-dot {
+  background: var(--level-ok);
+}
+
+.connection[data-connection='stale'] .status-dot {
+  background: var(--level-warn);
+}
+
+.connection[data-connection='offline'] .status-dot {
+  background: var(--level-alarm);
+}
+
+.connection[data-connection='stale'],
+.connection[data-connection='offline'] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Letzter bekannter Stand bleibt stehen, wird aber als veraltet gekennzeichnet. */
+.value[data-stale='true'] .value-reading,
+.status[data-stale='true'] strong {
+  opacity: 0.5;
+}
+
+.value[data-stale='true'] .value-label::after,
+.status[data-stale='true'] .status-label::after {
+  content: ' (veraltet)';
+}
+
+.hotspot[data-level] .hotspot-dot {
+  background: var(--level);
 }
 
 /* ---------- Konfigurator ----------

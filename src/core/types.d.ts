@@ -1,4 +1,4 @@
-// Projektformat des 3D-Web-Editors (Version 4).
+// Projektformat des 3D-Web-Editors (Version 5).
 // Diese Typen beschreiben project.json. Editor, Vorschau und Export lesen dasselbe Format.
 
 export type Vec3 = [number, number, number];
@@ -71,7 +71,7 @@ export interface ComponentAnimation {
   out: [number, number] | null;
 }
 
-export type ComponentType = 'headline' | 'text' | 'image' | 'button' | 'card' | 'infobox' | 'select' | 'slider' | 'instance';
+export type ComponentType = 'headline' | 'text' | 'image' | 'button' | 'card' | 'infobox' | 'select' | 'slider' | 'value' | 'status' | 'connection' | 'instance';
 
 export interface ComponentContent {
   text?: string;
@@ -100,6 +100,11 @@ export interface Component extends ComponentContent {
   animation: ComponentAnimation;
   /** Nur type "select" (Auswahlliste) und "slider" (Varianten-Slider): die Variantengruppe, die sie bedienen */
   groupId?: string;
+  /**
+   * Datenfeld des Digitalen Zwillings. "value" zeigt den Messwert, "status" den Zustand als Text.
+   * Karten, Infoboxen und andere Komponenten bekommen die Stufe des Felds als data-level (Farbe).
+   */
+  fieldId?: string;
   /** Kinder einer Karte oder Infobox */
   children?: Component[];
   /** Nur type "instance": die Vorlage und die eigenen Inhalte je Vorlagen-Element */
@@ -149,6 +154,8 @@ export interface Hotspot {
   name: string;
   /** Sichtbarer Text neben dem Punkt. Leer = nur der Punkt. */
   label: string;
+  /** Datenfeld, dessen Stufe der Punkt als Farbe zeigt */
+  fieldId?: string;
   /** Bauteil, an dem der Hotspot hängt (stabile ID) */
   nodeId: string;
   /** Position und Flächenrichtung im Koordinatensystem des Bauteils */
@@ -245,6 +252,60 @@ export interface MeshAction {
   action: ComponentAction;
 }
 
+// ---------- Digitaler Zwilling ----------
+
+/** Bewertung eines Werts: in Ordnung, Warnung, Alarm, aus. */
+export type DataLevel = 'ok' | 'warn' | 'alarm' | 'off';
+
+/** Ein Wert der Datenquelle mit Typ, Einheit, Grenzwerten und Testwert. */
+export interface DataField {
+  id: string;
+  /** Anzeigename, z. B. "Drehzahl" */
+  label: string;
+  /** Pfad des Werts in den Daten der Quelle, z. B. "motor.rpm" */
+  key: string;
+  type: 'number' | 'text' | 'boolean' | 'status';
+  unit?: string;
+  /** Nachkommastellen bei Zahlen */
+  decimals?: number;
+  /** Grenzwerte für Zahlen. Fehlende Grenzen gelten nicht. */
+  limits?: { warnAbove?: number | null; alarmAbove?: number | null; warnBelow?: number | null; alarmBelow?: number | null };
+  /** Für "status" und "boolean": Bedeutung der einzelnen Werte ("true"/"false" bei boolean). */
+  states?: { value: string; label: string; level: DataLevel }[];
+  /** Testwert für die Arbeit im Editor und die Vorschau mit Testdaten */
+  test: number | string | boolean;
+}
+
+/** Reaktion des Modells auf ein Datenfeld. */
+export type DataBinding =
+  /** Bauteile in der Farbe der Stufe einfärben (Betriebsstatus -> Farbe) */
+  | { id: string; fieldId: string; kind: 'color'; nodeIds: string[] }
+  /** Bauteil dauerhaft drehen; der Wert gibt die Umdrehungen pro Minute an (mal factor) */
+  | { id: string; fieldId: string; kind: 'rotate'; nodeId: string; axis: 'x' | 'y' | 'z'; factor: number }
+  /** Tempo eines Animationsclips: Bei reference läuft er in Originalgeschwindigkeit, bei 0 steht er. */
+  | { id: string; fieldId: string; kind: 'clip'; clip: string; reference: number };
+
+/**
+ * Datenquelle. Live-Quellen werden nur gelesen. Braucht die Quelle Zugangsdaten, zeigt url auf einen
+ * eigenen Backend-Endpunkt oder Proxy; Zugangsdaten stehen nie im Projekt oder im Export.
+ */
+export interface DataSource {
+  mode: 'test' | 'rest' | 'sse' | 'websocket';
+  url: string;
+  /** REST: Abstand der Abfragen in Sekunden */
+  interval: number;
+  /** Ohne neue Daten nach so vielen Sekunden gelten die Werte als veraltet. 0 = nie. */
+  staleAfter: number;
+}
+
+export interface ProjectData {
+  source: DataSource;
+  fields: DataField[];
+  bindings: DataBinding[];
+  /** Farben der Stufen für Bauteile und Oberfläche */
+  levelColors: Record<DataLevel, string>;
+}
+
 export interface Section {
   id: string;
   name: string;
@@ -274,7 +335,7 @@ export interface Budget {
 }
 
 export interface Project {
-  formatVersion: 4;
+  formatVersion: 5;
   name: string;
   model: { file: string | null; stats: ModelStats | null };
   /** Ausgangswerte aller animierbaren Eigenschaften. */
@@ -287,6 +348,7 @@ export interface Project {
   follows: Follow[];
   variantGroups: VariantGroup[];
   meshActions: MeshAction[];
+  data: ProjectData;
   framing: Record<Breakpoint, Framing>;
   budgets: { desktop: Budget; mobile: Budget };
   settings: {

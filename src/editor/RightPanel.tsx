@@ -1,3 +1,4 @@
+import { FieldInspector } from './DataPanels';
 import { GroupInspector, MeshActionField } from './ConfiguratorPanels';
 import { useMemo } from 'react';
 import { EASINGS } from '../core/easing.js';
@@ -335,6 +336,7 @@ export function RightPanel() {
   const selectedComponent = useEditor((s) => s.selectedComponent);
   const selectedHotspot = useEditor((s) => s.selectedHotspot);
   const selectedGroup = useEditor((s) => s.selectedGroup);
+  const selectedField = useEditor((s) => s.selectedField);
   const section = project.sections.find((s) => s.id === selectedSection);
 
   return (
@@ -342,6 +344,7 @@ export function RightPanel() {
       {selectedComponent && <ComponentInspector key={selectedComponent} id={selectedComponent} />}
       {selectedHotspot && <HotspotInspector key={selectedHotspot} id={selectedHotspot} />}
       {selectedGroup && <GroupInspector key={selectedGroup} id={selectedGroup} />}
+      {selectedField && <FieldInspector key={selectedField} id={selectedField} />}
       {selectedKeyframe && <KeyframeInspector id={selectedKeyframe} />}
       <SceneEditor />
       {section && <SectionEditor key={section.id} section={section} />}

@@ -1,3 +1,4 @@
+import { levelTints, resolveFields, syncDataElements, testData } from '../core/data.js';
 import { dominant, optionProp } from '../core/actions.js';
 import { applyOptions, syncOptionElements, timelineWeights } from '../core/configurator.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -175,7 +176,7 @@ export function Viewport() {
     applyFraming(stage, resolveFraming(project, breakpoint));
     applyState(stage, currentState(project, pos, draft));
     // Varianten, Materialien und Sichtbarkeit so zeigen, wie die Timeline sie an dieser Stelle wählt.
-    applyOptions(stage, project, timelineWeights(stage, project));
+    applyOptions(stage, project, timelineWeights(stage, project), levelTints(project, resolveFields(project, testData(project))));
     orbit.target.copy(stage.target);
     orbit.update();
   }, [project, pos, draft, modelVersion, breakpoint]);
@@ -220,6 +221,8 @@ export function Viewport() {
       if (choice) selection[group.id] = choice;
     }
     syncOptionElements(frameRef.current!, project, selection);
+    // Digitaler Zwilling: Testwerte in Messwerten, Statusanzeigen, Karten und Hotspots zeigen.
+    syncDataElements(frameRef.current!, project, resolveFields(project, testData(project)), { status: 'test', lastUpdate: null });
   }, [html, project, pos, draft]);
 
   /** Komponente anklicken (auswählen) oder, wenn sie frei platziert ist, ziehen. */

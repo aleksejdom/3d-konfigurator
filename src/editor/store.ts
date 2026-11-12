@@ -48,6 +48,7 @@ interface EditorState {
   selectedComponent: string | null;
   selectedHotspot: string | null;
   selectedGroup: string | null;
+  selectedField: string | null;
   /** Der nächste Klick auf das Modell setzt einen Hotspot */
   placingHotspot: boolean;
   /** Breakpoint, für den der Viewport anzeigt und Gestaltungswerte gespeichert werden */
@@ -83,6 +84,7 @@ export const useEditor = create<EditorState>(() => ({
   selectedComponent: null,
   selectedHotspot: null,
   selectedGroup: null,
+  selectedField: null,
   placingHotspot: false,
   breakpoint: 'desktop',
   assets: {},
@@ -137,6 +139,7 @@ function fixSelection(project: Project) {
     selectedKeyframe: project.keyframes.some((k) => k.id === state.selectedKeyframe) ? state.selectedKeyframe : null,
     selectedHotspot: project.hotspots.some((h) => h.id === state.selectedHotspot) ? state.selectedHotspot : null,
     selectedGroup: project.variantGroups.some((g) => g.id === state.selectedGroup) ? state.selectedGroup : null,
+    selectedField: project.data.fields.some((f) => f.id === state.selectedField) ? state.selectedField : null,
     selectedSection: project.sections.some((s) => s.id === state.selectedSection)
       ? state.selectedSection
       : (project.sections[0]?.id ?? null),
@@ -363,6 +366,7 @@ export async function openProject() {
       selectedComponent: null,
       selectedHotspot: null,
       selectedGroup: null,
+      selectedField: null,
       measurement: null,
     });
   } catch (error) {
@@ -378,6 +382,7 @@ export function newProject() {
     selectedComponent: null,
     selectedHotspot: null,
     selectedGroup: null,
+    selectedField: null,
     project,
     past: [],
     future: [],
@@ -445,10 +450,10 @@ export async function exportProject(target: 'vanilla' | 'astro') {
 
 // Eine ausgewählte Komponente und ein ausgewählter Hotspot schließen sich aus.
 useEditor.subscribe((state, previous) => {
-  if (state.selectedComponent && state.selectedComponent !== previous.selectedComponent && (state.selectedHotspot || state.selectedGroup)) {
-    set({ selectedHotspot: null, selectedGroup: null });
-  }
-  if (state.selectedHotspot && state.selectedHotspot !== previous.selectedHotspot && state.selectedGroup) {
-    set({ selectedGroup: null });
-  }
+  // Rechts wird immer nur eines bearbeitet: Komponente, Hotspot, Variantengruppe oder Datenfeld.
+  const keys = ['selectedComponent', 'selectedHotspot', 'selectedGroup', 'selectedField'] as const;
+  const changed = keys.find((key) => state[key] && state[key] !== previous[key]);
+  if (!changed) return;
+  const others = keys.filter((key) => key !== changed && state[key]);
+  if (others.length > 0) set(Object.fromEntries(others.map((key) => [key, null])));
 });

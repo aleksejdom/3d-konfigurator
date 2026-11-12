@@ -56,8 +56,9 @@ const part = new THREE.Color();
  * @param {import('./types').Project} project
  * @param {Record<string, Record<string, number>>} weights Gruppe -> (Wahl -> Gewicht 0..1).
  *   Während eines Übergangs sind zwei Wahlen anteilig aktiv und werden überblendet.
+ * @param {Record<string, string>} [tints] Bauteil -> Farbe aus einer Datenbindung; hat Vorrang vor der Farbe einer Materialgruppe
  */
-export function applyOptions(stage, project, weights) {
+export function applyOptions(stage, project, weights, tints = {}) {
   /** Mesh -> { opacity, source, color } */
   const plan = new Map();
   const planFor = (mesh) => {
@@ -112,6 +113,13 @@ export function applyOptions(stage, project, weights) {
         entry.color = color;
       });
     }
+  }
+
+  for (const [id, color] of Object.entries(tints)) {
+    const node = stage.nodes.get(id);
+    if (!node) continue;
+    const tint = new THREE.Color(color);
+    node.traverse((object) => object.isMesh && (planFor(object).color = tint));
   }
 
   for (const [node, weight] of nodeWeights) {
@@ -229,6 +237,9 @@ export function createConfigurator({ stage, project, root, canvas, openHotspot, 
   /** Aktuell dargestellte Gewichte */
   let shown = {};
   const playing = new Set();
+  /** Clips, deren Tempo ein Messwert bestimmt: Name -> Tempo (1 = Originalgeschwindigkeit) */
+  const driven = new Map();
+  let tints = {};
   let lastSection = -1;
   let signature = null;
   let dirty = true;
@@ -396,12 +407,29 @@ export function createConfigurator({ stage, project, root, canvas, openHotspot, 
   return {
     /** true, solange überblendet wird, ein Clip läuft oder sich etwas geändert hat */
     get live() {
-      return dirty || fading || playing.size > 0 || pointer.moved;
+      return dirty || fading || playing.size > 0 || pointer.moved || [...driven.values()].some((scale) => scale !== 0);
     },
     selection,
     select,
     reset,
     run,
+
+    /** Farben aus Datenbindungen (Bauteil -> Farbe). */
+    setTints(next) {
+      tints = next;
+      dirty = true;
+    },
+
+    /** Lässt einen Clip mit dem Tempo eines Messwerts laufen. scale 0 hält ihn an. */
+    driveClip(name, scale) {
+      const clip = stage.clips.find((c) => c.name === name);
+      if (!clip || !stage.mixer) return;
+      const action = stage.mixer.clipAction(clip);
+      if (!driven.has(name)) action.play();
+      action.timeScale = scale;
+      driven.set(name, scale);
+      dirty = true;
+    },
 
     /** Nach dem Setzen des Timeline-Zustands: Auswahl anwenden, Clips weiterspielen, Oberfläche abgleichen. */
     update(dt, pos) {
@@ -435,9 +463,9 @@ export function createConfigurator({ stage, project, root, canvas, openHotspot, 
         else if (!byVisitor) returning.delete(group.id);
       }
       shown = next;
-      applyOptions(stage, project, shown);
+      applyOptions(stage, project, shown, tints);
 
-      if (stage.mixer && playing.size > 0) stage.mixer.update(dt);
+      if (stage.mixer && (playing.size > 0 || driven.size > 0)) stage.mixer.update(dt);
 
       if (pointer.moved) {
         pointer.moved = false;

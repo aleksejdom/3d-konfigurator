@@ -1,3 +1,4 @@
+import { DataList } from './DataPanels';
 import { ConfiguratorList } from './ConfiguratorPanels';
 import { useMemo } from 'react';
 import type { Budget, ModelStats, Project } from '../core/types';
@@ -255,6 +256,9 @@ const LIBRARY: { type: Exclude<ComponentType, 'instance'>; hint: string }[] = [
   { type: 'infobox', hint: 'Kompakter Hinweis' },
   { type: 'select', hint: 'Variante aus einer Liste' },
   { type: 'slider', hint: 'Wischen, Pfeile, Tastatur' },
+  { type: 'value', hint: 'Zahl mit Einheit' },
+  { type: 'status', hint: 'Zustand als Text' },
+  { type: 'connection', hint: 'Verbunden, veraltet, offline' },
 ];
 
 function Library() {
@@ -419,6 +423,7 @@ export function LeftPanel() {
       <Layers />
       <Hotspots />
       <ConfiguratorList />
+      <DataList />
       <SceneTree />
       <Model />
     </aside>

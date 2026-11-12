@@ -25,12 +25,68 @@ function sceneNote() {
 - \`scene/timeline.js\` berechnet aus der Scrollposition den Zustand der Szene.
 - \`scene/scroll.js\` ordnet die Scrollposition einem Abschnitt und seiner relativen Position zu.
 - \`scene/stage.js\` baut die Three.js-Szene auf und überträgt den Zustand.
+- \`scene/components.js\` steuert die scrollgesteuerten Animationen der HTML-Komponenten.
+- \`scene/interaction.js\` enthält Hotspots, Kamerafahrten, Look At und Follow.
+- \`scene/configurator.js\` und \`scene/actions.js\` enthalten Varianten, Materialien, Regeln und Aktionen.
+- \`scene/data.js\` liest die Datenquelle und überträgt Werte auf Modell und Oberfläche.
 - \`scene/player.js\` verbindet alles über GSAP ScrollTrigger mit der Seite.
 
 Texte, Karten und Buttons stehen als normales HTML in der Seite und lassen sich dort direkt ändern.
 Ein Abschnitt wird über \`data-section="<ID>"\` mit der Timeline verbunden. Animierte Komponenten
 tragen \`data-anim\` sowie \`data-in\` und \`data-out\` (Bereich im Abschnitt, 0 bis 1).
 Breakpoints sind Container Queries im Stylesheet (Tablet bis 1024 px, Mobile bis 640 px).
+`;
+}
+
+/** Abschnitt der Startanleitung zur Datenquelle. Leer, wenn das Projekt keine Datenfelder hat. */
+function dataNote(project) {
+  const data = project.data;
+  if (!data || data.fields.length === 0) return '';
+  const source = data.source;
+  const kinds = { test: 'Testdaten (keine Verbindung)', rest: 'REST, JSON wird regelmäßig abgefragt', sse: 'Server-Sent Events', websocket: 'WebSocket' };
+  const example = {};
+  for (const field of data.fields) {
+    const parts = field.key.split('.');
+    let target = example;
+    parts.slice(0, -1).forEach((part) => (target = target[part] ??= {}));
+    target[parts[parts.length - 1]] = field.test;
+  }
+  const rows = data.fields.map((field) => `| ${field.label} | \`${field.key}\` | ${field.type}${field.unit ? ' (' + field.unit + ')' : ''} |`).join('\n');
+  return `## Datenquelle
+
+Die Seite liest Daten und zeigt sie am Modell und in der Oberfläche. Sie schreibt nichts zurück.
+
+Aktuelle Einstellung in \`src/project.json\` unter \`data.source\`:
+
+- \`mode\`: \`${source.mode}\` (${kinds[source.mode]}). Möglich sind \`test\`, \`rest\`, \`sse\`, \`websocket\`.
+- \`url\`: \`${source.url || '(leer)'}\`
+- \`interval\`: ${source.interval} s zwischen zwei Abfragen (nur REST)
+- \`staleAfter\`: Nach ${source.staleAfter} s ohne neue Daten gilt der Stand als veraltet (0 = nie)
+
+Die Quelle liefert JSON in dieser Form. Live-Kanäle dürfen auch nur die geänderten Teile schicken:
+
+\`\`\`json
+${JSON.stringify(example, null, 2)}
+\`\`\`
+
+| Datenfeld | Pfad | Typ |
+|---|---|---|
+${rows}
+
+Bei REST antwortet die Adresse auf GET mit dem JSON. Bei SSE und WebSocket ist jede Nachricht ein JSON-Text.
+Fällt die Verbindung aus, bleibt der letzte Stand sichtbar und wird als „Offline“ oder „Daten veraltet“ gekennzeichnet.
+
+### Zugangsdaten und Backend
+
+Im Browser-Code stehen keine Zugangsdaten, und dort dürfen auch keine eingetragen werden: Jeder Besucher
+könnte sie lesen. Braucht die eigentliche Quelle (SPS, MQTT-Broker, Hersteller-API) Zugangsdaten, stellt ein
+eigener kleiner Dienst auf dem Server die Verbindung her:
+
+1. Der Dienst hält die Zugangsdaten in seiner Umgebung (z. B. Umgebungsvariablen), fragt die Quelle ab
+   und gibt nur die Felder aus der Tabelle oben weiter.
+2. \`data.source.url\` zeigt auf diesen Dienst, z. B. \`/api/daten\` auf derselben Domain. Liegt er auf
+   einer anderen Domain, muss er den Zugriff per CORS erlauben.
+3. Die Verarbeitung der Daten steht in \`src/scene/data.js\`.
 `;
 }
 
@@ -124,6 +180,7 @@ npm run build
 
 Den Inhalt des Ordners \`dist\` auf den Webserver laden. Es wird kein Editor und kein Tauri benötigt.
 
+${dataNote(project)}
 ${sceneNote().replace(/`project\.json`/, '`src/project.json`').replace(/`scene\//g, '`src/scene/')}
 Die Seite selbst liegt in \`index.html\`, die Gestaltung in \`styles.css\`, das Modell in \`public/model\`, Bilder in \`public/images\`.
 `;
@@ -189,6 +246,7 @@ npm run build
 
 Den Inhalt des Ordners \`dist\` auf den Webserver laden. Es wird kein Editor und kein Tauri benötigt.
 
+${dataNote(project)}
 ${sceneNote().replace(/`project\.json`/, '`src/project.json`').replace(/`scene\//g, '`src/scene/')}
 Die Seite selbst liegt in \`src/pages/index.astro\`, die Gestaltung in \`src/styles/page.css\`,
 das Modell in \`public/model\`, Bilder in \`public/images\`.

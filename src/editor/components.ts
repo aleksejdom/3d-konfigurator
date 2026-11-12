@@ -393,5 +393,8 @@ export const COMPONENT_LABELS: Record<ComponentType, string> = {
   infobox: 'Infobox',
   select: 'Auswahlliste',
   slider: 'Varianten-Slider',
+  value: 'Messwert',
+  status: 'Statusanzeige',
+  connection: 'Verbindungsstatus',
   instance: 'Instanz',
 };

@@ -69,7 +69,7 @@ export function MeshActionField({ nodeId }: { nodeId: string }) {
   );
 }
 
-function NodeChips(props: { ids: string[]; onRemove: (id: string) => void; onAdd: (id: string) => void; empty: string }) {
+export function NodeChips(props: { ids: string[]; onRemove: (id: string) => void; onAdd: (id: string) => void; empty: string }) {
   const selectedNode = useEditor((s) => s.selectedNode);
   const canAdd = Boolean(selectedNode) && selectedNode !== 'model' && !props.ids.includes(selectedNode!);
   return (

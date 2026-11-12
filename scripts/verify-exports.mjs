@@ -28,7 +28,7 @@ const section = (id, name, extra = []) => ({
 });
 
 const project = {
-  formatVersion: 4,
+  formatVersion: 5,
   name: 'Export-Test',
   model: { file: 'sample.glb', stats: null },
   base: {
@@ -75,6 +75,30 @@ const project = {
       ],
     },
   ],
+  // Digitaler Zwilling: Status färbt das Display, Drehzahl und Temperatur als Messwerte mit Grenzwerten.
+  data: {
+    source: { mode: 'test', url: '', interval: 2, staleAfter: 5 },
+    levelColors: { ok: '#3ecf8e', warn: '#f5a623', alarm: '#e5484d', off: '#8b9099' },
+    fields: [
+      {
+        id: 'fStatus',
+        label: 'Betriebsstatus',
+        key: 'motor.status',
+        type: 'status',
+        states: [
+          { value: 'running', label: 'In Betrieb', level: 'ok' },
+          { value: 'warning', label: 'Warnung', level: 'warn' },
+          { value: 'error', label: 'Störung', level: 'alarm' },
+        ],
+        test: 'running',
+      },
+      { id: 'fRpm', label: 'Drehzahl', key: 'motor.rpm', type: 'number', unit: 'U/min', decimals: 0, limits: {}, test: 1480 },
+      { id: 'fTemp', label: 'Temperatur', key: 'motor.temperature', type: 'number', unit: '°C', decimals: 1, limits: { warnAbove: 70, alarmAbove: 85 }, test: 62.5 },
+    ],
+    bindings: [
+      { id: 'b1', fieldId: 'fStatus', kind: 'color', nodeIds: ['Geraet/Display'] },
+    ],
+  },
   meshActions: [{ nodeId: 'Geraet/Drehknopf', action: { type: 'clip', clip: 'Knopf drehen', mode: 'toggle' } }],
   hotspots: [
     {
@@ -96,7 +120,17 @@ const project = {
   ],
   follows: [{ id: 'fo1', subject: 'node:Geraet/Display', x: true, y: true, distance: 0.1, damping: 0.5, returns: true, touch: 'off' }],
   sections: [
-    section('a', 'Start'),
+    section('a', 'Start', [
+      component('a_card', 'card', {
+        fieldId: 'fStatus',
+        children: [
+          component('a_status', 'status', { fieldId: 'fStatus' }),
+          component('a_rpm', 'value', { fieldId: 'fRpm' }),
+          component('a_temp', 'value', { fieldId: 'fTemp' }),
+          component('a_conn', 'connection', {}),
+        ],
+      }),
+    ]),
     section('b', 'Details', [
       {
         id: 'inst1',

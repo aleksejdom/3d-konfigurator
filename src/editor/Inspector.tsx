@@ -1,3 +1,4 @@
+import { setComponentField } from './data';
 import { ActionSelect } from './ConfiguratorPanels';
 import { setComponentGroup } from './configurator';
 import { useState } from 'react';
@@ -197,6 +198,23 @@ export function ComponentInspector({ id }: { id: string }) {
           </Field>
         </>
       )}
+
+      {(type === 'value' || type === 'status' || container) && project.data.fields.length + (type === 'value' || type === 'status' ? 1 : 0) > 0 && (
+        <Field label={container ? 'Datenfeld (färbt den Rand nach Stufe)' : 'Datenfeld'}>
+          <select value={node.fieldId ?? ''} onChange={(e) => setComponentField(id, e.target.value)}>
+            <option value="">Keines</option>
+            {project.data.fields.map((field) => (
+              <option key={field.id} value={field.id}>
+                {field.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+      {(type === 'value' || type === 'status') && project.data.fields.length === 0 && (
+        <p className="hint">Lege links unter „Daten“ zuerst ein Datenfeld an.</p>
+      )}
+      {type === 'connection' && <p className="hint">Zeigt „Verbunden“, „Daten veraltet“ oder „Offline“ und den Zeitpunkt der letzten Aktualisierung.</p>}
 
       {(type === 'select' || type === 'slider') && (
         <Field label="Variantengruppe">

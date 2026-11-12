@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "verify:exports": "node scripts/verify-exports.mjs",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "demo:data": "node scripts/demo-data-server.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

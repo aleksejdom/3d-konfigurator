@@ -1,6 +1,6 @@
-import type { Budget, Component, ComponentAnimation, ComponentType, Project, Section } from '../core/types';
+import type { Budget, Component, ComponentAnimation, ComponentType, Project, Section, ProjectData } from '../core/types';
 
-export const FORMAT_VERSION = 4;
+export const FORMAT_VERSION = 5;
 
 export const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -54,6 +54,15 @@ export function createSection(name: string, withContent = true): Section {
   };
 }
 
+export function createData(): ProjectData {
+  return {
+    source: { mode: 'test', url: '', interval: 5, staleAfter: 15 },
+    fields: [],
+    bindings: [],
+    levelColors: { ok: '#3ecf8e', warn: '#f5a623', alarm: '#e5484d', off: '#8b9099' },
+  };
+}
+
 export function createProject(): Project {
   return {
     formatVersion: FORMAT_VERSION,
@@ -68,6 +77,7 @@ export function createProject(): Project {
     follows: [],
     variantGroups: [],
     meshActions: [],
+    data: createData(),
     framing: { desktop: {}, tablet: {}, mobile: {} },
     budgets: structuredClone(DEFAULT_BUDGETS),
     settings: { background: '#14161a', scrollSmoothing: 0 },
@@ -126,6 +136,8 @@ export function migrateProject(data: unknown): Project {
     // Seit Version 4
     variantGroups: raw.variantGroups ?? [],
     meshActions: raw.meshActions ?? [],
+    // Seit Version 5
+    data: { ...fresh.data, ...raw.data, source: { ...fresh.data.source, ...raw.data?.source }, levelColors: { ...fresh.data.levelColors, ...raw.data?.levelColors } },
     base: raw.base ?? {},
   };
 }
