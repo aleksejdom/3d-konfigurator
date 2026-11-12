@@ -74,11 +74,11 @@ export function locate(project: Project, id: string): Located | null {
 
 // ---------- Lesen ----------
 
-const CONTENT_KEYS: (keyof ComponentContent)[] = ['text', 'href', 'src', 'alt'];
+const CONTENT_KEYS: (keyof ComponentContent)[] = ['text', 'href', 'src', 'alt', 'action'];
 
 export function contentOf(located: Located): ComponentContent {
   const content: ComponentContent = {};
-  for (const key of CONTENT_KEYS) content[key] = located.node[key];
+  for (const key of CONTENT_KEYS) (content as Record<string, unknown>)[key] = located.node[key];
   if (located.instance && located.slotId) Object.assign(content, located.instance.content?.[located.slotId]);
   return content;
 }
@@ -261,15 +261,28 @@ export function moveComponent(id: string, targetId: string, mode: 'before' | 'in
   });
 }
 
-export function setPlacement(id: string, placement: 'flow' | 'free') {
+export function setPlacement(id: string, placement: Component['placement']) {
   update((project) => {
     const located = locate(project, id);
     if (!located || located.depth !== 0) return;
     located.node.placement = placement;
+    if (placement === 'hotspot') {
+      // Am Hotspot verankert: Die Position kommt vom Bauteil.
+      located.node.hotspotId ??= project.hotspots[0]?.id;
+      located.node.anchorMode ??= 'always';
+    }
     if (placement === 'free') {
       located.node.style.x ??= 50;
       located.node.style.y ??= 40;
     }
+  });
+}
+
+/** Hotspot und Anzeigeart einer verankerten Komponente. */
+export function setAnchor(id: string, patch: Pick<Component, 'hotspotId' | 'anchorMode'>) {
+  update((project) => {
+    const located = locate(project, id);
+    if (located && located.depth === 0) Object.assign(located.node, patch);
   });
 }
 

@@ -11,6 +11,7 @@ const FIELDS: Record<string, string> = {
   scale: 'Skalierung',
   color: 'Farbe',
   intensity: 'Stärke',
+  strength: 'Stärke',
 };
 
 export const SCOPE_LABELS: Record<Scope, string> = {
@@ -30,9 +31,17 @@ export function nodeName(id: string): string {
   return id === 'model' ? 'Modell' : id.split('/').pop()!;
 }
 
+/** "camera" oder "node:<ID>" als lesbarer Name */
+export function subjectName(subject: string): string {
+  return subject === 'camera' ? 'Kamera' : nodeName(subject.slice(5));
+}
+
+export const lookProps = (id: string) => [`lookAt:${id}.target`, `lookAt:${id}.strength`];
+
 export function propLabel(prop: string): string {
   const dot = prop.lastIndexOf('.');
   const target = prop.slice(0, dot);
+  if (target.startsWith('lookAt:')) return `Look At · ${prop.endsWith('.target') ? 'Ziel' : 'Stärke'}`;
   const field = FIELDS[prop.slice(dot + 1)] ?? prop.slice(dot + 1);
   const name = target.startsWith('node:') ? nodeName(target.slice(5)) : (TARGETS[target] ?? target);
   return `${name} · ${field}`;
@@ -70,6 +79,11 @@ export function propGroups(project: Project, draft: StateMap): PropGroup[] {
     { key: 'light', label: 'Licht', props: SCENE_PROPS.filter((p: string) => /^(keyLight|ambient)\./.test(p)) },
     { key: 'model', label: 'Modell (Position, Drehung, Skalierung)', props: nodeProps('model') },
     ...[...nodes].map((id) => ({ key: 'node:' + id, label: 'Bauteil ' + nodeName(id), props: nodeProps(id) })),
+    ...project.lookAts.map((look) => ({
+      key: 'look:' + look.id,
+      label: `Look At ${subjectName(look.subject)} (Ziel, Stärke)`,
+      props: lookProps(look.id),
+    })),
   ];
   return groups.map((group) => ({ ...group, dirty: group.props.some((prop: string) => prop in draft) }));
 }

@@ -46,6 +46,9 @@ interface EditorState {
   selectedSection: string | null;
   /** Ausgewählte HTML-Komponente. Kinder einer Instanz: "<Instanz>--<Vorlagen-Element>" */
   selectedComponent: string | null;
+  selectedHotspot: string | null;
+  /** Der nächste Klick auf das Modell setzt einen Hotspot */
+  placingHotspot: boolean;
   /** Breakpoint, für den der Viewport anzeigt und Gestaltungswerte gespeichert werden */
   breakpoint: Breakpoint;
   /** Bilder des Projekts: Dateiname -> Daten und Adresse für die Anzeige */
@@ -77,6 +80,8 @@ export const useEditor = create<EditorState>(() => ({
   selectedKeyframe: null,
   selectedSection: initialProject.sections[0].id,
   selectedComponent: null,
+  selectedHotspot: null,
+  placingHotspot: false,
   breakpoint: 'desktop',
   assets: {},
   dragging: false,
@@ -128,6 +133,7 @@ function fixSelection(project: Project) {
     selectedComponent:
       componentRoot && JSON.stringify(project.sections).includes(`"id":"${componentRoot}"`) ? state.selectedComponent : null,
     selectedKeyframe: project.keyframes.some((k) => k.id === state.selectedKeyframe) ? state.selectedKeyframe : null,
+    selectedHotspot: project.hotspots.some((h) => h.id === state.selectedHotspot) ? state.selectedHotspot : null,
     selectedSection: project.sections.some((s) => s.id === state.selectedSection)
       ? state.selectedSection
       : (project.sections[0]?.id ?? null),
@@ -350,6 +356,7 @@ export async function openProject() {
       unsaved: false,
       snapshots: snapshots.map((snapshot) => ({ ...snapshot, project: migrateProject(snapshot.project) })),
       selectedComponent: null,
+      selectedHotspot: null,
       measurement: null,
     });
   } catch (error) {
@@ -363,6 +370,7 @@ export function newProject() {
   clearAssets();
   set({
     selectedComponent: null,
+    selectedHotspot: null,
     project,
     past: [],
     future: [],
@@ -427,3 +435,10 @@ export async function exportProject(target: 'vanilla' | 'astro') {
     notify('Export fehlgeschlagen: ' + (error as Error).message);
   }
 }
+
+// Eine ausgewählte Komponente und ein ausgewählter Hotspot schließen sich aus.
+useEditor.subscribe((state, previous) => {
+  if (state.selectedComponent && state.selectedComponent !== previous.selectedComponent && state.selectedHotspot) {
+    set({ selectedHotspot: null });
+  }
+});

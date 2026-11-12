@@ -13,6 +13,7 @@ import {
   resolvedTree,
   type ResolvedNode,
 } from './components';
+import { removeHotspot } from './interactions';
 import { nodeName } from './labels';
 import { createSection } from './project';
 import { editor } from './stage';
@@ -368,12 +369,50 @@ function Layers() {
   );
 }
 
+function Hotspots() {
+  const hotspots = useEditor((s) => s.project.hotspots);
+  const selected = useEditor((s) => s.selectedHotspot);
+  const placing = useEditor((s) => s.placingHotspot);
+  const hasModel = useEditor((s) => s.project.model.file !== null);
+
+  return (
+    <section className="panel-block">
+      <header>
+        <h3>Hotspots</h3>
+        <button
+          className={placing ? 'active' : ''}
+          disabled={!hasModel}
+          onClick={() => useEditor.setState({ placingHotspot: !placing })}
+        >
+          {placing ? 'Abbrechen' : '+ Hotspot'}
+        </button>
+      </header>
+      {placing && <p className="hint">Klicke im Viewport auf die Stelle des Modells, an der der Hotspot sitzen soll.</p>}
+      {!placing && hotspots.length === 0 && <p className="hint">Hotspots hängen an einem Bauteil und folgen seiner Bewegung.</p>}
+      <ul className="list">
+        {hotspots.map((hotspot) => (
+          <li key={hotspot.id} className={hotspot.id === selected ? 'selected' : ''}>
+            <button className="list-main" onClick={() => useEditor.setState({ selectedHotspot: hotspot.id, selectedComponent: null })}>
+              <span className="kind">◉</span> {hotspot.name}
+              <small>{nodeName(hotspot.nodeId)}</small>
+            </button>
+            <button onClick={() => removeHotspot(hotspot.id)} aria-label={`${hotspot.name} löschen`} title="Hotspot löschen">
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function LeftPanel() {
   return (
     <aside className="panel left">
       <Sections />
       <Library />
       <Layers />
+      <Hotspots />
       <SceneTree />
       <Model />
     </aside>

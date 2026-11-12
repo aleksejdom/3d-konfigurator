@@ -28,7 +28,7 @@ const section = (id, name, extra = []) => ({
 });
 
 const project = {
-  formatVersion: 2,
+  formatVersion: 3,
   name: 'Export-Test',
   model: { file: 'sample.glb', stats: null },
   base: {
@@ -42,7 +42,28 @@ const project = {
     'node:model.position': [0, 0, 0],
     'node:model.rotation': [0, 0, 0],
     'node:model.scale': [1, 1, 1],
+    'lookAt:la1.target': 'pointer',
+    'lookAt:la1.strength': 1,
   },
+  hotspots: [
+    {
+      id: 'hs1',
+      name: 'Drehknopf',
+      label: 'Drehknopf',
+      nodeId: 'Geraet/Drehknopf',
+      position: [0, 0, 0.5],
+      normal: [0, 0, 1],
+      sectionId: null,
+      views: { desktop: { position: [1.5, 1, 9], target: [0, 0, 0] } },
+      duration: 0.3,
+      easing: 'easeInOut',
+      onScroll: 'return',
+    },
+  ],
+  lookAts: [
+    { id: 'la1', subject: 'node:Geraet/Deckel', forward: '+z', yaw: true, pitch: true, maxYaw: 30, maxPitch: 20, damping: 0.5, touch: 'drag' },
+  ],
+  follows: [{ id: 'fo1', subject: 'node:Geraet/Display', x: true, y: true, distance: 0.1, damping: 0.5, returns: true, touch: 'off' }],
   sections: [
     section('a', 'Start'),
     section('b', 'Details', [
@@ -57,7 +78,15 @@ const project = {
         content: { slot_h: { text: 'Karte im Abschnitt Details' } },
       },
     ]),
-    section('c', 'Abschluss'),
+    section('c', 'Abschluss', [
+      component('c_go', 'button', { text: 'Zum Drehknopf', action: { type: 'hotspot', hotspotId: 'hs1' } }),
+      component('c_info', 'infobox', {
+        placement: 'hotspot',
+        hotspotId: 'hs1',
+        anchorMode: 'open',
+        children: [component('c_info_h', 'headline', { text: 'Drehknopf' }), component('c_info_x', 'button', { text: 'Schließen', action: { type: 'close' } })],
+      }),
+    ]),
   ],
   keyframes: [
     {
@@ -69,6 +98,7 @@ const project = {
         'keyLight.color': { value: '#ff9a3c', scope: 'inherit' },
       },
     },
+    { id: 'k3', sectionId: 'c', t: 0.5, values: { 'lookAt:la1.target': { value: 'camera', scope: 'inherit' } } },
     { id: 'k2', sectionId: 'c', t: 1, values: { 'node:model.rotation': { value: [0, 6.2832, 0], scope: 'inherit' } } },
   ],
   templates: [

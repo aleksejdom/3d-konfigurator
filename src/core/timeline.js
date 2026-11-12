@@ -26,11 +26,23 @@ function rgbToHex(rgb) {
   return '#' + rgb.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('');
 }
 
-/** Mischt zwei Werte gleichen Typs (Zahl, Vektor oder Farbe). w = 0 ergibt a, w = 1 ergibt b. */
+const isChoice = (value) => (typeof value === 'string' ? value[0] !== '#' : !Array.isArray(value));
+const toWeights = (value) => (typeof value === 'string' ? { [value]: 1 } : value);
+
+/**
+ * Mischt zwei Werte gleichen Typs (Zahl, Vektor, Farbe oder Auswahl). w = 0 ergibt a, w = 1 ergibt b.
+ * Eine Auswahl (etwa das Look-At-Ziel) wird zu Gewichten gemischt: { "pointer": 0.3, "camera": 0.7 }.
+ */
 export function mix(a, b, w) {
   if (w <= 0) return a;
   if (w >= 1) return b;
   if (typeof a === 'number') return a + (b - a) * w;
+  if (isChoice(a)) {
+    const weights = {};
+    for (const [key, share] of Object.entries(toWeights(a))) weights[key] = (weights[key] || 0) + share * (1 - w);
+    for (const [key, share] of Object.entries(toWeights(b))) weights[key] = (weights[key] || 0) + share * w;
+    return weights;
+  }
   if (typeof a === 'string') {
     const ca = hexToRgb(a);
     const cb = hexToRgb(b);

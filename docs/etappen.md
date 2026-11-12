@@ -29,11 +29,24 @@ Deckt den Teil von Abnahmekriterium 3 ab, der ohne Hotspots und Look At auskommt
 - Bilder liegen im Projektordner unter `assets/` und im Export unter `public/images/`
 - Projektformat Version 2; Projekte der Version 1 werden beim Öffnen umgestellt
 
+## Etappe 3: Hotspots, Look At und Follow (erledigt, Stand 12.11.2026)
+
+Schließt Abnahmekriterium 3 ab.
+
+- Hotspots per Klick auf ein Mesh („Hotspot setzen“). Sie hängen am Bauteil, folgen seiner Bewegung und verschwinden auf der abgewandten Seite. Optional nur in einem Abschnitt sichtbar, mit Beschriftung
+- „Kameraansicht merken“ pro Hotspot: Kameraposition, Blickziel, Abstand, Dauer und Easing. Pro Breakpoint eine eigene Ansicht möglich, sonst geerbt
+- Kamerafahrt per Klick, Tap oder Tastatur (Enter, Leertaste, Escape schließt). Pro Hotspot einstellbar: Scrollen führt weich zur aktuellen Scroll-Kamera zurück, oder die Ansicht bleibt bis zum Schließen
+- Buttons und Karten können als Aktion die Kamera zu einem Hotspot fahren oder die Detailansicht schließen
+- Komponenten lassen sich an einem Hotspot verankern, dauerhaft oder nur bei geöffnetem Hotspot
+- Look At pro Modell, Mesh oder Kamera: Ziel Mauszeiger, Objekt, Mesh, Hotspot, freier 3D-Punkt oder Kamera; Drehachsen, Winkelgrenzen, Stärke, Dämpfung. Ziel und Stärke lassen sich mit „Merken“ pro Abschnitt speichern, der Wechsel zwischen zwei Zielen verläuft weich und umkehrbar
+- Follow pro Modell, Mesh oder Kamera: Achsen, Distanz, Dämpfung, Rückkehrverhalten
+- Look At und Follow wirken zusätzlich zur Timeline; eigenes Verhalten für Touch-Geräte
+- Projektformat Version 3; ältere Projekte werden beim Öffnen umgestellt
+
 ## Noch offen
 
 | Etappe | Inhalt | Abnahmekriterium |
 |---|---|---|
-| 3 | Hotspots am Mesh, an Hotspots verankerte Komponenten, „Kameraansicht merken“, Button-Aktion „Kamera zu Hotspot“, Look At und Follow (Maus, Touch) | 3 (Rest) |
 | 4 | Konfigurator: Aktionen an Meshes und HTML-Elementen, Materialwechsel, Mesh-Slider, Variantenregeln, Vorrang der Besucherauswahl, Überblenden von Sichtbarkeit und Varianten | 4 |
 | 5 | Digitaler Zwilling: typisierte Datenbindungen, Testdaten, REST/JSON, WebSocket/SSE, Verbindungszustände | 5 |
 | 6 | HDRI/Skybox, Animationsclips aus dem Modell, Draco-Kompression, glTF mit Begleitdateien, Posterbild, reduzierte Bewegung, Vorschau-Link und QR-Code fürs WLAN, Messung auf echtem Gerät | 1 (Rest) |

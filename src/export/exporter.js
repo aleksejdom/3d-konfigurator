@@ -2,7 +2,7 @@
 // Die Dateien unter src/core werden unverändert mitgegeben: Der Export rechnet deshalb
 // mit genau dem Code, mit dem auch die Editor-Vorschau rechnet.
 
-import { escapeHtml, renderCss, renderFreeLayer, renderSections, usedImages } from './page.js';
+import { escapeHtml, renderCss, renderFreeLayer, renderHotspotLayer, renderSections, usedImages } from './page.js';
 
 const VERSIONS = { three: '^0.187.0', gsap: '^3.15.1', vite: '^8.3.8', astro: '^7.4.11' };
 
@@ -59,10 +59,11 @@ export function buildExport(project, target, coreSources) {
   const sceneDir = 'src/scene/';
   const imagePaths = Object.fromEntries(usedImages(project).map((name) => [name, `public/images/${name}`]));
   const freeLayer = renderFreeLayer(project, { indent: '    ' });
+  const hotspotLayer = renderHotspotLayer(project, { indent: '    ' });
   const body = `    <canvas id="stage"${modelAttr} aria-hidden="true"></canvas>
     <main class="page">
 ${renderSections(project, { indent: '      ' })}
-    </main>${freeLayer ? '\n' + freeLayer : ''}`;
+    </main>${freeLayer ? '\n' + freeLayer : ''}${hotspotLayer ? '\n' + hotspotLayer : ''}`;
 
   for (const [name, source] of Object.entries(coreSources)) files[sceneDir + name] = source;
   files['src/project.json'] = JSON.stringify(project, null, 2) + '\n';

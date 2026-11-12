@@ -50,7 +50,7 @@ const round = (n: number) => Math.round(n * 1e5) / 1e5;
 
 export function tidy(value: Value): Value {
   if (typeof value === 'number') return round(value);
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string' || !Array.isArray(value)) return value;
   return value.map(round) as Value;
 }
 
@@ -58,5 +58,6 @@ export function sameValue(a: Value | undefined, b: Value | undefined): boolean {
   if (a === undefined || b === undefined) return a === b;
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-4;
   if (typeof a === 'string' || typeof b === 'string') return a === b;
+  if (!Array.isArray(a) || !Array.isArray(b)) return JSON.stringify(a) === JSON.stringify(b);
   return (a as number[]).every((n, i) => Math.abs(n - (b as number[])[i]) < 1e-4);
 }

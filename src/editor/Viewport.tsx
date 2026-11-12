@@ -6,8 +6,10 @@ import { bindComponents, resolveFraming } from '../core/components.js';
 import { applyFraming, applyState, createStage, readProp, renderStage, resizeStage, setBackground } from '../core/stage.js';
 import { splitPos } from '../core/timeline.js';
 import type { Breakpoint, Scope, Value } from '../core/types';
-import { renderCss, renderFreeLayer, renderSections } from '../export/page.js';
+import { positionHotspots } from '../core/interaction.js';
+import { renderCss, renderFreeLayer, renderHotspotLayer, renderSections } from '../export/page.js';
 import { addComponent, removeComponent, setStyle } from './components';
+import { addHotspot } from './interactions';
 import { SCOPE_LABELS, lastScope, posLabel, propGroups } from './labels';
 import { currentState, editor, sameValue } from './stage';
 import { discardDraft, importModel, loadSampleModel, merken, setDraft, useEditor } from './store';
@@ -41,6 +43,7 @@ export function Viewport() {
   const breakpoint = useEditor((s) => s.breakpoint);
   const assets = useEditor((s) => s.assets);
   const dragging = useEditor((s) => s.dragging);
+  const placingHotspot = useEditor((s) => s.placingHotspot);
   const hasModel = project.model.file !== null;
   const dirty = Object.keys(draft).length > 0;
 
@@ -107,6 +110,13 @@ export function Viewport() {
       );
       raycaster.setFromCamera(pointer, stage.camera);
       const hit = raycaster.intersectObject(stage.model, true)[0];
+      if (useEditor.getState().placingHotspot) {
+        // Hotspot setzen: Punkt und Flächenrichtung im Koordinatensystem des getroffenen Bauteils.
+        if (hit && hit.object.userData.nodeId) {
+          addHotspot(hit.object.userData.nodeId, hit.object.worldToLocal(hit.point.clone()), hit.face ? hit.face.normal.clone() : null);
+        }
+        return;
+      }
       useEditor.setState({ selectedNode: hit ? (hit.object.userData.nodeId ?? null) : null, selectedComponent: null });
     };
     canvas.addEventListener('pointerdown', onDown);
@@ -131,6 +141,15 @@ export function Viewport() {
         gizmoHelper.visible = visible;
       }
       renderStage(stage);
+      // Hotspot-Punkte und daran verankerte Komponenten folgen ihrem Bauteil.
+      const state = useEditor.getState();
+      if (frameRef.current && state.project.hotspots.length > 0) {
+        positionHotspots(stage, state.project, frameRef.current.querySelectorAll<HTMLElement>('[data-hotspot]'), {
+          pos: state.pos,
+          activeId: state.selectedHotspot,
+          editor: true,
+        });
+      }
     };
     loop();
 
@@ -176,7 +195,7 @@ export function Viewport() {
   const css = useMemo(() => `@scope (.page-frame) {\n${renderCss(project)}\n}`, [project]);
   const html = useMemo(() => {
     const options = { only: index, editor: true, indent: '', assetUrl: (name: string) => assets[name]?.url ?? '' };
-    return `<main class="page">${renderSections(project, options)}</main>${renderFreeLayer(project, options)}`;
+    return `<main class="page">${renderSections(project, options)}</main>${renderFreeLayer(project, options)}${renderHotspotLayer(project, options)}`;
   }, [project, index, assets]);
 
   // Scroll-Animationen der Komponenten: dieselbe Funktion wie in Vorschau und Export.
@@ -190,11 +209,17 @@ export function Viewport() {
 
   /** Komponente anklicken (auswählen) oder, wenn sie frei platziert ist, ziehen. */
   const onFramePointerDown = (event: React.PointerEvent) => {
+    const marker = (event.target as HTMLElement).closest<HTMLElement>('.hotspot');
+    if (marker) {
+      useEditor.setState({ selectedHotspot: marker.dataset.hotspot!, selectedComponent: null });
+      return;
+    }
     const element = (event.target as HTMLElement).closest<HTMLElement>('[data-c]');
     if (!element || event.button !== 0) return;
     event.preventDefault();
     const frame = frameRef.current!.getBoundingClientRect();
-    const root = element.closest<HTMLElement>('.free-layer > .c');
+    // Am Hotspot verankerte Komponenten bekommen ihre Position vom Bauteil und lassen sich nicht ziehen.
+    const root = element.closest<HTMLElement>('.free-layer > .c:not(.anchored)');
     const rootRect = root?.getBoundingClientRect();
     const start = { x: event.clientX, y: event.clientY };
     let position: { x: number; y: number } | null = null;
@@ -260,7 +285,7 @@ export function Viewport() {
 
   return (
     <div
-      className="viewport"
+      className={`viewport ${placingHotspot ? 'placing' : ''}`}
       ref={outerRef}
       onDragOver={(event) => {
         if (!event.dataTransfer.types.includes(DRAG_TYPE)) return;
@@ -304,6 +329,14 @@ export function Viewport() {
         ))}
         <button onClick={() => useEditor.setState({ selectedNode: 'model', selectedComponent: null })} disabled={!hasModel}>
           Modell wählen
+        </button>
+        <button
+          className={placingHotspot ? 'active' : ''}
+          disabled={!hasModel}
+          onClick={() => useEditor.setState({ placingHotspot: !placingHotspot })}
+          title="Danach auf das Modell klicken"
+        >
+          Hotspot setzen
         </button>
         <span className="tool-gap" />
         {(Object.keys(DEVICE_LABEL) as Breakpoint[]).map((b) => (

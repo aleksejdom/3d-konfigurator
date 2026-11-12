@@ -8,6 +8,7 @@ import {
   locate,
   removeComponent,
   saveAsTemplate,
+  setAnchor,
   setAnimation,
   setContent,
   setPlacement,
@@ -44,6 +45,7 @@ export function ComponentInspector({ id }: { id: string }) {
   const container = isContainer(type);
   const topLevel = located.depth === 0 && !located.slotId;
   const free = topLevel && node.placement === 'free';
+  const anchored = topLevel && node.placement === 'hotspot';
   const content = contentOf(located);
   const animation = node.animation;
   const isText = type === 'headline' || type === 'text' || type === 'button';
@@ -157,14 +159,63 @@ export function ComponentInspector({ id }: { id: string }) {
         <div className="field">
           <span>Platzierung</span>
           <div className="segmented">
-            <button className={!free ? 'active' : ''} onClick={() => setPlacement(id, 'flow')}>
+            <button className={!free && !anchored ? 'active' : ''} onClick={() => setPlacement(id, 'flow')}>
               Im Seitenlayout
             </button>
             <button className={free ? 'active' : ''} onClick={() => setPlacement(id, 'free')}>
-              Frei über dem Canvas
+              Frei
+            </button>
+            <button
+              className={anchored ? 'active' : ''}
+              disabled={project.hotspots.length === 0}
+              title={project.hotspots.length === 0 ? 'Setze zuerst einen Hotspot auf das Modell' : 'Folgt dem Hotspot am Bauteil'}
+              onClick={() => setPlacement(id, 'hotspot')}
+            >
+              Am Hotspot
             </button>
           </div>
         </div>
+      )}
+      {anchored && (
+        <>
+          <Field label="Hotspot">
+            <select value={node.hotspotId ?? ''} onChange={(e) => setAnchor(id, { hotspotId: e.target.value })}>
+              {project.hotspots.map((hotspot) => (
+                <option key={hotspot.id} value={hotspot.id}>
+                  {hotspot.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Anzeigen">
+            <select value={node.anchorMode ?? 'always'} onChange={(e) => setAnchor(id, { anchorMode: e.target.value as 'always' | 'open' })}>
+              <option value="always">Immer, solange der Hotspot zu sehen ist</option>
+              <option value="open">Nur, wenn der Hotspot geöffnet ist</option>
+            </select>
+          </Field>
+        </>
+      )}
+
+      {(type === 'button' || container) && (
+        <Field label="Aktion bei Klick">
+          <select
+            value={content.action ? (content.action.type === 'close' ? 'close' : 'hotspot:' + content.action.hotspotId) : ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              setContent(id, {
+                action: value === '' ? null : value === 'close' ? { type: 'close' } : { type: 'hotspot', hotspotId: value.slice(8) },
+              });
+            }}
+          >
+            <option value="">{type === 'button' ? 'Link öffnen' : 'Keine'}</option>
+            {project.hotspots.map((hotspot) => (
+              <option key={hotspot.id} value={'hotspot:' + hotspot.id}>
+                Kamera zu „{hotspot.name}“ fahren
+              </option>
+            ))}
+            <option value="close">Detailansicht schließen</option>
+          </select>
+        </Field>
       )}
 
       <h4>Gestaltung · {BREAKPOINT_LABELS[breakpoint]}</h4>

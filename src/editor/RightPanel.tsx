@@ -4,6 +4,7 @@ import { DEFAULT_BLEND } from '../core/timeline.js';
 import type { Breakpoint, Budget, Framing, KeyValue, Scope, Section, Value, Vec3 } from '../core/types';
 import { BREAKPOINT_LABELS, Field, InheritRow, NumberInput, OptionalNumber, VectorField } from './fields';
 import { ComponentInspector } from './Inspector';
+import { HotspotInspector, InteractionEditor } from './InteractionPanels';
 import { EASING_LABELS, SCOPE_LABELS, nodeName, propLabel } from './labels';
 import { currentState, editor } from './stage';
 import { moveKeyframe, setDraft, setPos, update, useEditor } from './store';
@@ -186,6 +187,7 @@ function SceneEditor() {
           <VectorField label="Drehung (°)" value={vec(`${node}.rotation`)} scale={DEG} step={5} onChange={set(`${node}.rotation`)} />
           <VectorField label="Skalierung" value={vec(`${node}.scale`)} onChange={set(`${node}.scale`)} />
           <p className="hint">Für eine volle Umdrehung beim Scrollen 360 eintragen.</p>
+          <InteractionEditor subject={node} />
         </section>
       )}
       <section className="panel-block">
@@ -197,6 +199,7 @@ function SceneEditor() {
         <Field label={`Bildwinkel: ${Math.round(num('camera.fov'))}°`}>
           <input type="range" min={10} max={90} value={num('camera.fov')} onChange={(e) => set('camera.fov')(parseFloat(e.target.value))} />
         </Field>
+        <InteractionEditor subject="camera" />
         <FramingEditor />
       </section>
       <section className="panel-block">
@@ -328,11 +331,13 @@ export function RightPanel() {
   const selectedKeyframe = useEditor((s) => s.selectedKeyframe);
   const selectedSection = useEditor((s) => s.selectedSection);
   const selectedComponent = useEditor((s) => s.selectedComponent);
+  const selectedHotspot = useEditor((s) => s.selectedHotspot);
   const section = project.sections.find((s) => s.id === selectedSection);
 
   return (
     <aside className="panel right">
       {selectedComponent && <ComponentInspector key={selectedComponent} id={selectedComponent} />}
+      {selectedHotspot && <HotspotInspector key={selectedHotspot} id={selectedHotspot} />}
       {selectedKeyframe && <KeyframeInspector id={selectedKeyframe} />}
       <SceneEditor />
       {section && <SectionEditor key={section.id} section={section} />}

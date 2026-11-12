@@ -101,7 +101,7 @@ describe('Vorlagen und Instanzen', () => {
 });
 
 describe('Projektformat', () => {
-  it('hebt Version 1 auf Version 2', () => {
+  it('hebt Version 1 auf die aktuelle Version', () => {
     const v1 = {
       formatVersion: 1,
       name: 'Alt',
@@ -124,8 +124,9 @@ describe('Projektformat', () => {
       settings: { background: '#000000', scrollSmoothing: 0 },
     };
     const project = migrateProject(v1);
-    expect(project.formatVersion).toBe(2);
+    expect(project.formatVersion).toBe(3);
     expect(project.templates).toEqual([]);
+    expect([project.hotspots, project.lookAts, project.follows]).toEqual([[], [], []]);
     expect(project.sections[0].components.map((c) => [c.id, c.type, c.text, c.href])).toEqual([
       ['e1', 'headline', 'Hallo', undefined],
       ['e2', 'button', 'Los', '#x'],

@@ -2,7 +2,7 @@
 // danach läuft hier derselbe Player wie in der exportierten Website.
 
 import { startPlayer } from '../core/player.js';
-import { renderCss, renderFreeLayer, renderSections } from '../export/page.js';
+import { renderCss, renderFreeLayer, renderHotspotLayer, renderSections } from '../export/page.js';
 
 window.addEventListener('message', async (event) => {
   if (event.source !== window.parent || event.data?.type !== 'load') return;
@@ -19,9 +19,10 @@ window.addEventListener('message', async (event) => {
   document.title = project.name;
   document.querySelector('#page-css').textContent = renderCss(project);
   document.querySelector('.page').innerHTML = renderSections(project, options);
-  document.querySelector('.page').insertAdjacentHTML('afterend', renderFreeLayer(project, options));
+  document.querySelector('.page').insertAdjacentHTML('afterend', renderFreeLayer(project, options) + renderHotspotLayer(project));
 
-  await startPlayer({
+  // Für automatische Tests der Vorschau erreichbar.
+  window.__player = await startPlayer({
     project,
     canvas: document.querySelector('#stage'),
     modelBuffer: model || undefined,

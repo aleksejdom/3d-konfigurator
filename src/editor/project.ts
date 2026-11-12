@@ -1,6 +1,6 @@
 import type { Budget, Component, ComponentAnimation, ComponentType, Project, Section } from '../core/types';
 
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 export const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -63,6 +63,9 @@ export function createProject(): Project {
     sections: [createSection('Start'), createSection('Details'), createSection('Abschluss')],
     keyframes: [],
     templates: [],
+    hotspots: [],
+    lookAts: [],
+    follows: [],
     framing: { desktop: {}, tablet: {}, mobile: {} },
     budgets: structuredClone(DEFAULT_BUDGETS),
     settings: { background: '#14161a', scrollSmoothing: 0 },
@@ -114,6 +117,10 @@ export function migrateProject(data: unknown): Project {
     sections: raw.sections ?? fresh.sections,
     keyframes: raw.keyframes ?? [],
     templates: raw.templates ?? [],
+    // Seit Version 3
+    hotspots: raw.hotspots ?? [],
+    lookAts: raw.lookAts ?? [],
+    follows: raw.follows ?? [],
     base: raw.base ?? {},
   };
 }

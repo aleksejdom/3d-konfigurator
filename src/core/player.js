@@ -7,6 +7,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { evaluate } from './timeline.js';
 import { measureSections, scrollToPos } from './scroll.js';
 import { bindComponents, breakpointFor, resolveFraming } from './components.js';
+import { createInteraction } from './interaction.js';
 import { applyFraming, applyState, createStage, loadModel, renderStage, resizeStage, setBackground } from './stage.js';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -34,6 +35,8 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
 
   const sectionElements = document.querySelectorAll('[data-section]');
   const updateComponents = bindComponents(document, project.sections.map((section) => section.id));
+  let breakpoint = 'desktop';
+  const interaction = createInteraction({ stage, project, root: document, canvas, getBreakpoint: () => breakpoint });
   let layout = [];
   let targetPos = 0;
   let currentPos = 0;
@@ -45,7 +48,8 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
   };
 
   const measure = () => {
-    applyFraming(stage, resolveFraming(project, breakpointFor(canvas.clientWidth)));
+    breakpoint = breakpointFor(canvas.clientWidth);
+    applyFraming(stage, resolveFraming(project, breakpoint));
     resizeStage(stage, canvas.clientWidth, canvas.clientHeight);
     layout = measureSections(sectionElements);
     readScroll();
@@ -60,7 +64,10 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
   measure();
   currentPos = targetPos;
 
-  const frame = () => {
+  let lastTime = performance.now();
+  const frame = (now) => {
+    const dt = Math.min(0.1, (now - lastTime) / 1000);
+    lastTime = now;
     const smoothing = project.settings.scrollSmoothing || 0;
     if (smoothing > 0 && Math.abs(targetPos - currentPos) > 0.0005) {
       currentPos += (targetPos - currentPos) * (1 - smoothing);
@@ -69,9 +76,12 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
       currentPos = targetPos;
       needsRender = true;
     }
-    if (needsRender) {
+    // Mit Hotspots, Look At oder Follow wird jedes Bild neu gerechnet, sonst nur nach dem Scrollen.
+    if (needsRender || interaction.live) {
       needsRender = false;
+      interaction.reset();
       applyState(stage, evaluate(project, currentPos));
+      interaction.update(dt, currentPos);
       updateComponents(currentPos);
       renderStage(stage);
     }
@@ -84,12 +94,14 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     const buffer = modelBuffer || (await (await fetch(modelUrl)).arrayBuffer());
     await simulateDownload(buffer.byteLength, startedAt, throttle);
     await loadModel(stage, buffer);
+    interaction.bind();
     applyState(stage, evaluate(project, currentPos));
+    interaction.update(0, currentPos);
     renderStage(stage);
     canvas.dataset.ready = 'true';
     // performance.now() zählt ab dem Start der Seite.
     requestAnimationFrame(() => onFirstRender && onFirstRender(performance.now()));
   }
 
-  return stage;
+  return { stage, interaction };
 }

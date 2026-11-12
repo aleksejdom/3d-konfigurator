@@ -15,7 +15,7 @@ export function escapeHtml(text) {
 }
 
 export const CONTAINER_TYPES = ['card', 'infobox'];
-const CONTENT_KEYS = ['text', 'href', 'src', 'alt'];
+const CONTENT_KEYS = ['text', 'href', 'src', 'alt', 'action'];
 
 // ---------- Vorlagen auflösen ----------
 
@@ -46,6 +46,9 @@ export function resolveComponent(project, component) {
     resolved.children = (node.children || []).map((child) => fill(child, false));
     if (isRoot) {
       resolved.placement = component.placement;
+      resolved.hotspotId = component.hotspotId;
+      resolved.anchorMode = component.anchorMode;
+      resolved.action = component.action;
       resolved.animation = component.animation;
       resolved.templateId = template.id;
     }
@@ -93,16 +96,38 @@ function wordCount(node) {
   return (node.text ?? '').split(/\s+/).filter(Boolean).length;
 }
 
+/** An einem Hotspot verankert? */
+const isAnchored = (node) => node.placement === 'hotspot' && Boolean(node.hotspotId);
+
+/** Liegt die Komponente über dem Canvas (frei oder am Hotspot) statt im Seitenlayout? */
+const isOverlay = (node) => node.placement === 'free' || isAnchored(node);
+
+/** Aktion als Text für data-action: "hotspot:<ID>" fährt die Kamera zum Hotspot, "close" schließt die Detailansicht. */
+function actionValue(node) {
+  if (!node.action) return '';
+  if (node.action.type === 'close') return 'close';
+  return node.action.hotspotId ? 'hotspot:' + node.action.hotspotId : '';
+}
+
 function renderNode(node, context, indent, depth) {
   const topLevel = depth === 0;
   const free = topLevel && node.placement === 'free';
-  const classes = ['c', node.type, ...node.classes.map((id) => 'c-' + id), ...(free ? ['free'] : [])].join(' ');
+  const anchored = topLevel && isAnchored(node);
+  const classes = ['c', node.type, ...node.classes.map((id) => 'c-' + id), ...(free ? ['free'] : []), ...(anchored ? ['anchored'] : [])].join(' ');
   let attributes = `class="${classes}"` + animationAttributes(node, context.sectionId, free);
+  if (anchored) {
+    // Das Skript setzt die Komponente an die Stelle des Hotspots im Bild.
+    attributes += ` data-hotspot="${escapeHtml(node.hotspotId)}" data-for="${escapeHtml(context.sectionId)}"`;
+    if (node.anchorMode === 'open') attributes += ' data-anchor-mode="open"';
+  }
+  const action = actionValue(node);
+  if (action) attributes += ` data-action="${escapeHtml(action)}"`;
   if (context.editor) attributes += ` data-c="${escapeHtml(node.id)}"`;
   if (node.animation && node.animation.type === 'reveal') attributes += ` style="--n: ${wordCount(node)}"`;
 
   if (CONTAINER_TYPES.includes(node.type)) {
     const children = node.children.map((child) => renderNode(child, context, indent + '  ', depth + 1));
+    if (action) attributes += ' role="button" tabindex="0"';
     return [`${indent}<div ${attributes}>`, ...children, `${indent}</div>`].join('\n');
   }
   if (node.type === 'headline') {
@@ -114,6 +139,7 @@ function renderNode(node, context, indent, depth) {
     return `${indent}<${tag} ${attributes}>${textHtml(node)}</${tag}>`;
   }
   if (node.type === 'button') {
+    if (action) return `${indent}<button type="button" ${attributes}>${textHtml(node)}</button>`;
     return `${indent}<a ${attributes} href="${escapeHtml(node.href || '#')}">${textHtml(node)}</a>`;
   }
   if (node.type === 'image') {
@@ -152,7 +178,7 @@ export function renderSections(project, options = {}) {
       if (!included(options, index)) return null;
       context.sectionId = section.id;
       const flow = resolveSection(project, section)
-        .filter((node) => node.placement !== 'free')
+        .filter((node) => !isOverlay(node))
         .map((node) => renderNode(node, context, indent + '    ', 0))
         .filter(Boolean);
       return [
@@ -167,7 +193,7 @@ export function renderSections(project, options = {}) {
     .join('\n');
 }
 
-/** Die frei über dem 3D-Canvas platzierten Komponenten aller Abschnitte. Leer, wenn es keine gibt. */
+/** Die frei über dem 3D-Canvas platzierten und die an Hotspots verankerten Komponenten. Leer, wenn es keine gibt. */
 export function renderFreeLayer(project, options = {}) {
   const context = makeContext(options);
   context.headlineSeen = true;
@@ -177,11 +203,23 @@ export function renderFreeLayer(project, options = {}) {
     if (!included(options, index)) return;
     context.sectionId = section.id;
     for (const node of resolveSection(project, section)) {
-      if (node.placement === 'free') nodes.push(renderNode(node, context, indent + '  ', 0));
+      if (isOverlay(node)) nodes.push(renderNode(node, context, indent + '  ', 0));
     }
   });
   if (nodes.length === 0 && !context.editor) return '';
   return [`${indent}<div class="free-layer">`, ...nodes.filter(Boolean), `${indent}</div>`].join('\n');
+}
+
+/** Die Hotspot-Punkte als Buttons: per Maus, Touch und Tastatur bedienbar. Leer, wenn es keine gibt. */
+export function renderHotspotLayer(project, options = {}) {
+  const indent = options.indent ?? '    ';
+  if (project.hotspots.length === 0 && !options.editor) return '';
+  const buttons = project.hotspots.map((hotspot) => {
+    const label = hotspot.label ? `<span class="hotspot-label">${escapeHtml(hotspot.label)}</span>` : '';
+    const scope = hotspot.sectionId ? ` data-for="${escapeHtml(hotspot.sectionId)}"` : '';
+    return `${indent}  <button type="button" class="hotspot" data-hotspot="${escapeHtml(hotspot.id)}"${scope} aria-label="${escapeHtml(hotspot.name)}"><span class="hotspot-dot"></span>${label}</button>`;
+  });
+  return [`${indent}<div class="hotspot-layer">`, ...buttons, `${indent}</div>`].join('\n');
 }
 
 // ---------- CSS ----------
@@ -433,6 +471,80 @@ h1.headline {
 
 .infobox .text {
   font-size: 0.9rem;
+}
+
+/* ---------- Hotspots ----------
+   Das Skript setzt left/top jedes Punkts auf die Stelle des Bauteils im Bild. */
+
+.hotspot-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.hotspot {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  translate: -15px -50%;
+  visibility: hidden;
+}
+
+.hotspot-dot {
+  width: 30px;
+  height: 30px;
+  border: 9px solid color-mix(in srgb, var(--button-background) 35%, transparent);
+  border-radius: 50%;
+  background: var(--button-background);
+  background-clip: padding-box;
+  transition: border-width 0.2s;
+}
+
+.hotspot:hover .hotspot-dot,
+.hotspot.active .hotspot-dot {
+  border-width: 6px;
+}
+
+.hotspot:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.hotspot-label {
+  padding: 0.2rem 0.7rem;
+  border: 1px solid var(--surface-line);
+  border-radius: 999px;
+  background: var(--surface);
+  backdrop-filter: blur(10px);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* An einem Hotspot verankerte Komponenten stehen unter dem Punkt. */
+.free-layer > .anchored {
+  translate: -15px 26px;
+  visibility: hidden;
+}
+
+button.button {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+[data-action] {
+  cursor: pointer;
 }
 
 /* ---------- Scrollgesteuerte Animationen ----------

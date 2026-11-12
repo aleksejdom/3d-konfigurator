@@ -42,6 +42,8 @@ export function createStage(canvas) {
     nodes: new Map([['model', model]]),
     /** Kugel um das geladene Modell, für Kameraabstand und Hilfslinien */
     bounds: new THREE.Sphere(new THREE.Vector3(), 1),
+    /** Werte ohne eigenes 3D-Objekt, etwa Ziel und Stärke von Look At ("lookAt:<ID>.target") */
+    params: {},
     /** Kameraausschnitt des aktuellen Breakpoints */
     framing: { zoom: 1, shiftX: 0, shiftY: 0 },
   };
@@ -193,6 +195,10 @@ export function applyState(stage, state) {
       stage.scene.environmentIntensity = value;
       continue;
     }
+    if (target.startsWith('lookAt:')) {
+      stage.params[prop] = value;
+      continue;
+    }
     const object = resolveTarget(stage, target);
     if (!object) continue;
 
@@ -210,6 +216,12 @@ export function applyState(stage, state) {
 export function readProp(stage, prop) {
   const [target, field] = splitProp(prop);
   if (target === 'ambient') return stage.scene.environmentIntensity;
+  if (target.startsWith('lookAt:')) {
+    const value = stage.params[prop];
+    // Mitten in einem Übergang zwischen zwei Zielen gilt das mit dem größeren Gewicht.
+    if (value && typeof value === 'object') return Object.keys(value).sort((a, b) => value[b] - value[a])[0];
+    return value;
+  }
   const object = resolveTarget(stage, target);
   if (!object) return undefined;
 
