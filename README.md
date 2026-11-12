@@ -36,7 +36,7 @@ unter „Actions“ den Workflow „Windows-Installer“ starten und das Artefak
 ## Prüfen
 
 ```
-npm test                # Timeline, Scrollzuordnung, Komponenten, Vorlagen, Breakpoints, Hotspots, Look At
+npm test                # Timeline, Scrollzuordnung, Komponenten, Vorlagen, Breakpoints, Hotspots, Look At, Konfigurator
 npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
 ```
 
@@ -52,8 +52,10 @@ npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
    Über „Desktop / Tablet / Mobile“ am Viewport passt du Gestaltung und Kameraausschnitt pro Breakpoint an.
 7. „Hotspot setzen“ und ein Bauteil anklicken; rechts „Kameraansicht merken“. Einem Button die Aktion
    „Kamera zu Hotspot fahren“ geben. Für ein ausgewähltes Bauteil „+ Look At“ oder „+ Follow“ anlegen.
-8. **Vorschau** zeigt die echte Seite und misst die Zeit bis zum ersten sichtbaren Render.
-9. **Exportieren** schreibt ein Astro- oder ein HTML/CSS/JavaScript-Projekt in einen Ordner.
+8. Für den Konfigurator ein Bauteil auswählen und links „+ Variante“ oder „+ Material“ anlegen. Den Besuchern
+   gibst du einen Varianten-Slider, eine Auswahlliste oder Buttons mit der passenden Aktion.
+9. **Vorschau** zeigt die echte Seite und misst die Zeit bis zum ersten sichtbaren Render.
+10. **Exportieren** schreibt ein Astro- oder ein HTML/CSS/JavaScript-Projekt in einen Ordner.
 
 ## Aufbau
 
@@ -72,7 +74,7 @@ denselben Zustand.
 ## Projektordner
 
 ```
-project.json     Abschnitte, Komponenten, Vorlagen, Hotspots, Look At, Follow, gespeicherte Punkte, Budgets (formatVersion 3)
+project.json     Abschnitte, Komponenten, Vorlagen, Hotspots, Look At, Follow, Variantengruppen, gespeicherte Punkte, Budgets (formatVersion 4)
 snapshots.json   benannte Projektstände
 assets/          Modelldatei und Bilder
 ```

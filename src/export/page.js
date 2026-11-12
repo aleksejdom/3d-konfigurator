@@ -2,6 +2,7 @@
 // Der Editor-Viewport, die Vorschau und beide Exporte verwenden dieselbe Ausgabe.
 
 import { BREAKPOINT_WIDTHS } from '../core/components.js';
+import { actionToString } from '../core/actions.js';
 
 /** Maskiert Text für HTML. Geschweifte Klammern werden ebenfalls maskiert (Astro-Vorlagen). */
 export function escapeHtml(text) {
@@ -26,10 +27,13 @@ const CONTENT_KEYS = ['text', 'href', 'src', 'alt', 'action'];
  *   id       eindeutige ID auf der Seite (bei Instanz-Kindern "<Instanz>--<Vorlagen-Element>")
  *   classes  IDs, deren CSS-Regeln gelten (bei Instanzen: Vorlage für das Layout, Instanz für die Position)
  */
+const groupOf = (project, node) => (node.groupId ? (project.variantGroups || []).find((group) => group.id === node.groupId) : undefined);
+
 export function resolveComponent(project, component) {
   if (component.type !== 'instance') {
     return {
       ...component,
+      group: groupOf(project, component),
       classes: [component.id],
       children: (component.children || []).map((child) => resolveComponent(project, child)).filter(Boolean),
     };
@@ -39,7 +43,7 @@ export function resolveComponent(project, component) {
 
   const fill = (node, isRoot) => {
     const content = isRoot ? {} : (component.content && component.content[node.id]) || {};
-    const resolved = { ...node };
+    const resolved = { ...node, group: groupOf(project, node) };
     for (const key of CONTENT_KEYS) if (content[key] !== undefined) resolved[key] = content[key];
     resolved.id = isRoot ? component.id : `${component.id}--${node.id}`;
     resolved.classes = isRoot ? [node.id, component.id] : [node.id];
@@ -102,18 +106,46 @@ const isAnchored = (node) => node.placement === 'hotspot' && Boolean(node.hotspo
 /** Liegt die Komponente über dem Canvas (frei oder am Hotspot) statt im Seitenlayout? */
 const isOverlay = (node) => node.placement === 'free' || isAnchored(node);
 
-/** Aktion als Text für data-action: "hotspot:<ID>" fährt die Kamera zum Hotspot, "close" schließt die Detailansicht. */
-function actionValue(node) {
-  if (!node.action) return '';
-  if (node.action.type === 'close') return 'close';
-  return node.action.hotspotId ? 'hotspot:' + node.action.hotspotId : '';
+/** Aktion als Text für data-action, z. B. "hotspot:<ID>" oder "select:<Gruppe>:<Wahl>" (siehe core/actions.js). */
+const actionValue = (node) => actionToString(node.action);
+
+/** Auswahlliste einer Variantengruppe. Das Skript stellt die aktive Wahl ein und sperrt nicht verfügbare Varianten. */
+function renderSelect(node, attributes, indent) {
+  const group = node.group;
+  if (!group) return `${indent}<select ${attributes} disabled><option>Keine Gruppe gewählt</option></select>`;
+  const options = group.options.map((option) => `${indent}  <option value="${escapeHtml(option.id)}">${escapeHtml(option.name)}</option>`);
+  return [`${indent}<select ${attributes} data-group="${escapeHtml(group.id)}" aria-label="${escapeHtml(group.name)}">`, ...options, `${indent}</select>`].join('\n');
+}
+
+/** Varianten-Slider: Wechsel per Pfeil-Schaltflächen, Punkten, Wischen und Pfeiltasten. */
+function renderSlider(node, attributes, indent) {
+  const group = node.group;
+  if (!group) return `${indent}<div ${attributes}><span class="variant-item is-active">Keine Gruppe gewählt</span></div>`;
+  const id = escapeHtml(group.id);
+  const items = group.options.map((option) => `${indent}    <span class="variant-item" data-option="${escapeHtml(option.id)}">${escapeHtml(option.name)}</span>`);
+  const dots = group.options.map(
+    (option) => `${indent}    <button type="button" class="variant-dot" data-action="select:${id}:${escapeHtml(option.id)}" aria-label="${escapeHtml(option.name)}"></button>`,
+  );
+  return [
+    `${indent}<div ${attributes} data-group="${id}" role="group" aria-label="${escapeHtml(group.name)}" tabindex="0">`,
+    `${indent}  <button type="button" class="variant-arrow" data-action="prev:${id}" aria-label="Vorherige Variante">&#8249;</button>`,
+    `${indent}  <div class="variant-items" aria-live="polite">`,
+    ...items,
+    `${indent}  </div>`,
+    `${indent}  <button type="button" class="variant-arrow" data-action="next:${id}" aria-label="Nächste Variante">&#8250;</button>`,
+    `${indent}  <div class="variant-dots">`,
+    ...dots,
+    `${indent}  </div>`,
+    `${indent}</div>`,
+  ].join('\n');
 }
 
 function renderNode(node, context, indent, depth) {
   const topLevel = depth === 0;
   const free = topLevel && node.placement === 'free';
   const anchored = topLevel && isAnchored(node);
-  const classes = ['c', node.type, ...node.classes.map((id) => 'c-' + id), ...(free ? ['free'] : []), ...(anchored ? ['anchored'] : [])].join(' ');
+  const kind = node.type === 'slider' ? ['slider', 'variant-slider'] : [node.type];
+  const classes = ['c', ...kind, ...node.classes.map((id) => 'c-' + id), ...(free ? ['free'] : []), ...(anchored ? ['anchored'] : [])].join(' ');
   let attributes = `class="${classes}"` + animationAttributes(node, context.sectionId, free);
   if (anchored) {
     // Das Skript setzt die Komponente an die Stelle des Hotspots im Bild.
@@ -130,6 +162,8 @@ function renderNode(node, context, indent, depth) {
     if (action) attributes += ' role="button" tabindex="0"';
     return [`${indent}<div ${attributes}>`, ...children, `${indent}</div>`].join('\n');
   }
+  if (node.type === 'select') return renderSelect(node, attributes, indent);
+  if (node.type === 'slider') return renderSlider(node, attributes, indent);
   if (node.type === 'headline') {
     let tag = 'h3';
     if (topLevel) {
@@ -230,7 +264,7 @@ function isDark(hex) {
   return luminance < 0.5;
 }
 
-const DISPLAY = { card: 'flex', infobox: 'flex', button: 'inline-block' };
+const DISPLAY = { card: 'flex', infobox: 'flex', button: 'inline-block', select: 'inline-block', slider: 'grid' };
 const ALIGN_ITEMS = { left: 'flex-start', center: 'center', right: 'flex-end' };
 const POSITION_KEYS = ['x', 'y', 'visible'];
 
@@ -545,6 +579,111 @@ button.button {
 
 [data-action] {
   cursor: pointer;
+}
+
+/* ---------- Konfigurator ----------
+   Das Skript setzt .is-active auf die gewählte Variante und .is-unavailable auf gesperrte Varianten. */
+
+.button.is-active,
+.card.is-active,
+.infobox.is-active {
+  outline: 3px solid var(--text);
+  outline-offset: 3px;
+}
+
+.is-unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.select {
+  min-height: 44px;
+  padding: 0.6em 2.2em 0.6em 1em;
+  border: 1px solid var(--surface-line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.select option {
+  color: #16181c;
+  background: #ffffff;
+}
+
+.variant-slider {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  width: 18rem;
+  max-width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--surface-line);
+  border-radius: 14px;
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.variant-slider:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 3px;
+}
+
+.variant-arrow {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--button-background);
+  color: var(--button-text);
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.variant-items {
+  display: grid;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Alle Namen liegen übereinander, sichtbar ist nur die aktive Variante. */
+.variant-item {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.variant-item.is-active {
+  opacity: 1;
+}
+
+.variant-dots {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.variant-dot {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 8px solid transparent;
+  border-radius: 50%;
+  background: var(--text-muted);
+  background-clip: padding-box;
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.variant-dot.is-active {
+  opacity: 1;
+  background-color: var(--text);
 }
 
 /* ---------- Scrollgesteuerte Animationen ----------

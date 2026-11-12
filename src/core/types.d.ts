@@ -1,4 +1,4 @@
-// Projektformat des 3D-Web-Editors (Version 3).
+// Projektformat des 3D-Web-Editors (Version 4).
 // Diese Typen beschreiben project.json. Editor, Vorschau und Export lesen dasselbe Format.
 
 export type Vec3 = [number, number, number];
@@ -71,7 +71,7 @@ export interface ComponentAnimation {
   out: [number, number] | null;
 }
 
-export type ComponentType = 'headline' | 'text' | 'image' | 'button' | 'card' | 'infobox' | 'instance';
+export type ComponentType = 'headline' | 'text' | 'image' | 'button' | 'card' | 'infobox' | 'select' | 'slider' | 'instance';
 
 export interface ComponentContent {
   text?: string;
@@ -98,6 +98,8 @@ export interface Component extends ComponentContent {
   style: ComponentStyle;
   overrides: { tablet?: ComponentStyle; mobile?: ComponentStyle };
   animation: ComponentAnimation;
+  /** Nur type "select" (Auswahlliste) und "slider" (Varianten-Slider): die Variantengruppe, die sie bedienen */
+  groupId?: string;
   /** Kinder einer Karte oder Infobox */
   children?: Component[];
   /** Nur type "instance": die Vorlage und die eigenen Inhalte je Vorlagen-Element */
@@ -105,7 +107,20 @@ export interface Component extends ComponentContent {
   content?: Record<string, ComponentContent>;
 }
 
-export type ComponentAction = { type: 'hotspot'; hotspotId: string } | { type: 'close' };
+export type ComponentAction =
+  /** Kamera zur Detailansicht eines Hotspots fahren */
+  | { type: 'hotspot'; hotspotId: string }
+  /** Detailansicht schließen */
+  | { type: 'close' }
+  /** Variante, Material oder Sichtbarkeit wählen */
+  | { type: 'select'; groupId: string; optionId: string }
+  /** Zur nächsten oder vorherigen Variante einer Gruppe wechseln */
+  | { type: 'next'; groupId: string }
+  | { type: 'prev'; groupId: string }
+  /** Auswahl des Besuchers verwerfen und an die Timeline zurückgeben. groupId null = alle Gruppen */
+  | { type: 'reset'; groupId: string | null }
+  /** Animationsclip des Modells starten, stoppen oder umschalten */
+  | { type: 'clip'; clip: string; mode: 'play' | 'stop' | 'toggle' };
 
 /** Eine Vorlage liefert Aufbau und Gestaltung. Instanzen bringen eigene Inhalte und ihre Position mit. */
 export interface Template {
@@ -189,6 +204,47 @@ export interface Follow {
   touch: TouchMode;
 }
 
+// ---------- Konfigurator ----------
+
+/**
+ * Eine Wahlmöglichkeit einer Variantengruppe.
+ * Gruppe "mesh": nodeIds sind die Bauteile, die bei dieser Wahl zu sehen sind (leer = nichts, also "ausgeblendet").
+ * Gruppe "material": color und/oder material (Name eines Materials aus dem Modell) für die Zielbauteile.
+ */
+export interface VariantOption {
+  id: string;
+  name: string;
+  nodeIds?: string[];
+  color?: string | null;
+  material?: string | null;
+  /** Variantenregel: nur wählbar, wenn in den genannten Gruppen die genannte Wahl aktiv ist */
+  requires?: { groupId: string; optionId: string }[];
+}
+
+/**
+ * Variantengruppe: genau eine ihrer Wahlmöglichkeiten ist aktiv.
+ * Die Wahl der Timeline steht als "option:<ID>.value" in base und lässt sich merken.
+ * Wählt der Besucher selbst, hat seine Wahl Vorrang, bis sie zurückgesetzt wird.
+ */
+export interface VariantGroup {
+  id: string;
+  name: string;
+  kind: 'mesh' | 'material';
+  /** Nur kind "material": Bauteile, deren Material gewechselt wird */
+  targets?: string[];
+  options: VariantOption[];
+  /** Dauer des Überblendens bei einer Wahl des Besuchers, in Sekunden */
+  fade: number;
+  /** Übergabe an die Timeline: Erreicht die Seite einen dieser Abschnitte, gilt wieder die Wahl der Timeline. */
+  resetSections: string[];
+}
+
+/** Aktion, die ein Klick oder Tap auf ein Bauteil des Modells auslöst. */
+export interface MeshAction {
+  nodeId: string;
+  action: ComponentAction;
+}
+
 export interface Section {
   id: string;
   name: string;
@@ -204,6 +260,10 @@ export interface ModelStats {
   meshes: number;
   materials: number;
   textures: { name: string; width: number; height: number }[];
+  /** Namen der Animationsclips im Modell */
+  clips?: string[];
+  /** Namen der Materialien im Modell */
+  materialNames?: string[];
 }
 
 export interface Budget {
@@ -214,7 +274,7 @@ export interface Budget {
 }
 
 export interface Project {
-  formatVersion: 3;
+  formatVersion: 4;
   name: string;
   model: { file: string | null; stats: ModelStats | null };
   /** Ausgangswerte aller animierbaren Eigenschaften. */
@@ -225,6 +285,8 @@ export interface Project {
   hotspots: Hotspot[];
   lookAts: LookAt[];
   follows: Follow[];
+  variantGroups: VariantGroup[];
+  meshActions: MeshAction[];
   framing: Record<Breakpoint, Framing>;
   budgets: { desktop: Budget; mobile: Budget };
   settings: {

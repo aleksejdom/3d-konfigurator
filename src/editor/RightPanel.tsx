@@ -1,3 +1,4 @@
+import { GroupInspector, MeshActionField } from './ConfiguratorPanels';
 import { useMemo } from 'react';
 import { EASINGS } from '../core/easing.js';
 import { DEFAULT_BLEND } from '../core/timeline.js';
@@ -187,6 +188,7 @@ function SceneEditor() {
           <VectorField label="Drehung (°)" value={vec(`${node}.rotation`)} scale={DEG} step={5} onChange={set(`${node}.rotation`)} />
           <VectorField label="Skalierung" value={vec(`${node}.scale`)} onChange={set(`${node}.scale`)} />
           <p className="hint">Für eine volle Umdrehung beim Scrollen 360 eintragen.</p>
+          <MeshActionField nodeId={selectedNode!} />
           <InteractionEditor subject={node} />
         </section>
       )}
@@ -332,12 +334,14 @@ export function RightPanel() {
   const selectedSection = useEditor((s) => s.selectedSection);
   const selectedComponent = useEditor((s) => s.selectedComponent);
   const selectedHotspot = useEditor((s) => s.selectedHotspot);
+  const selectedGroup = useEditor((s) => s.selectedGroup);
   const section = project.sections.find((s) => s.id === selectedSection);
 
   return (
     <aside className="panel right">
       {selectedComponent && <ComponentInspector key={selectedComponent} id={selectedComponent} />}
       {selectedHotspot && <HotspotInspector key={selectedHotspot} id={selectedHotspot} />}
+      {selectedGroup && <GroupInspector key={selectedGroup} id={selectedGroup} />}
       {selectedKeyframe && <KeyframeInspector id={selectedKeyframe} />}
       <SceneEditor />
       {section && <SectionEditor key={section.id} section={section} />}

@@ -1,3 +1,4 @@
+import { ConfiguratorList } from './ConfiguratorPanels';
 import { useMemo } from 'react';
 import type { Budget, ModelStats, Project } from '../core/types';
 import { splitPos } from '../core/timeline.js';
@@ -201,6 +202,8 @@ function Model() {
             <dd>{number.format(stats.materials)}</dd>
             <dt>Draw Calls</dt>
             <dd>{drawCalls} (gerenderte Szene)</dd>
+            <dt>Animationsclips</dt>
+            <dd title={(stats.clips ?? []).join(', ')}>{(stats.clips ?? []).length === 0 ? 'keine' : (stats.clips ?? []).join(', ')}</dd>
             <dt>Texturen</dt>
             <dd>{stats.textures.length === 0 ? 'keine' : stats.textures.length}</dd>
           </dl>
@@ -250,6 +253,8 @@ const LIBRARY: { type: Exclude<ComponentType, 'instance'>; hint: string }[] = [
   { type: 'button', hint: 'Link als Schaltfläche' },
   { type: 'card', hint: 'Behälter für Elemente' },
   { type: 'infobox', hint: 'Kompakter Hinweis' },
+  { type: 'select', hint: 'Variante aus einer Liste' },
+  { type: 'slider', hint: 'Wischen, Pfeile, Tastatur' },
 ];
 
 function Library() {
@@ -413,6 +418,7 @@ export function LeftPanel() {
       <Library />
       <Layers />
       <Hotspots />
+      <ConfiguratorList />
       <SceneTree />
       <Model />
     </aside>

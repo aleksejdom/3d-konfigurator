@@ -26,7 +26,15 @@ faces.forEach(([normal, corners], f) => {
 const posBytes = Buffer.from(new Float32Array(positions).buffer);
 const normBytes = Buffer.from(new Float32Array(normals).buffer);
 const idxBytes = Buffer.from(new Uint16Array(indices).buffer);
-const bin = Buffer.concat([posBytes, normBytes, idxBytes]);
+// Animationsclip "Knopf drehen": eine volle Umdrehung des Drehknopfs um seine Achse in zwei Sekunden.
+const times = [0, 0.5, 1, 1.5, 2];
+const turns = times.flatMap((t) => {
+  const half = (t / 2) * Math.PI; // halber Drehwinkel
+  return [0, 0, Math.sin(half), Math.cos(half)];
+});
+const timeBytes = Buffer.from(new Float32Array(times).buffer);
+const turnBytes = Buffer.from(new Float32Array(turns).buffer);
+const bin = Buffer.concat([posBytes, normBytes, idxBytes, timeBytes, turnBytes]);
 
 const material = (name, color, metallic, roughness) => ({
   name,
@@ -40,6 +48,9 @@ const parts = [
   { name: 'Drehknopf', material: 3, translation: [0.5, 0.1, 0.56], scale: [0.22, 0.22, 0.12] },
   { name: 'Fuss_links', material: 1, translation: [-0.6, -0.52, 0], scale: [0.25, 0.14, 0.8] },
   { name: 'Fuss_rechts', material: 1, translation: [0.6, -0.52, 0], scale: [0.25, 0.14, 0.8] },
+  // Zwei alternative Aufsätze für den Konfigurator
+  { name: 'Aufsatz_Griff', material: 1, translation: [0, 0.65, 0], scale: [0.9, 0.12, 0.14] },
+  { name: 'Aufsatz_Leuchte', material: 4, translation: [0, 0.69, 0], scale: [0.3, 0.2, 0.3] },
 ];
 
 const gltf = {
@@ -59,16 +70,28 @@ const gltf = {
     material('Metall', [0.75, 0.76, 0.78], 1, 0.3),
     material('Glas', [0.05, 0.07, 0.1], 0.2, 0.1),
     material('Gummi', [0.1, 0.1, 0.11], 0, 0.85),
+    material('Signal', [0.98, 0.75, 0.1], 0, 0.4),
   ],
   accessors: [
     { bufferView: 0, componentType: 5126, count: 24, type: 'VEC3', min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] },
     { bufferView: 1, componentType: 5126, count: 24, type: 'VEC3' },
     { bufferView: 2, componentType: 5123, count: 36, type: 'SCALAR' },
+    { bufferView: 3, componentType: 5126, count: times.length, type: 'SCALAR', min: [0], max: [2] },
+    { bufferView: 4, componentType: 5126, count: times.length, type: 'VEC4' },
   ],
   bufferViews: [
     { buffer: 0, byteOffset: 0, byteLength: posBytes.length, target: 34962 },
     { buffer: 0, byteOffset: posBytes.length, byteLength: normBytes.length, target: 34962 },
     { buffer: 0, byteOffset: posBytes.length + normBytes.length, byteLength: idxBytes.length, target: 34963 },
+    { buffer: 0, byteOffset: posBytes.length + normBytes.length + idxBytes.length, byteLength: timeBytes.length },
+    { buffer: 0, byteOffset: posBytes.length + normBytes.length + idxBytes.length + timeBytes.length, byteLength: turnBytes.length },
+  ],
+  animations: [
+    {
+      name: 'Knopf drehen',
+      samplers: [{ input: 3, output: 4, interpolation: 'LINEAR' }],
+      channels: [{ sampler: 0, target: { node: parts.findIndex((part) => part.name === 'Drehknopf') + 1, path: 'rotation' } }],
+    },
   ],
   buffers: [{ byteLength: bin.length }],
 };

@@ -8,6 +8,7 @@ import { evaluate } from './timeline.js';
 import { measureSections, scrollToPos } from './scroll.js';
 import { bindComponents, breakpointFor, resolveFraming } from './components.js';
 import { createInteraction } from './interaction.js';
+import { createConfigurator } from './configurator.js';
 import { applyFraming, applyState, createStage, loadModel, renderStage, resizeStage, setBackground } from './stage.js';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -37,6 +38,14 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
   const updateComponents = bindComponents(document, project.sections.map((section) => section.id));
   let breakpoint = 'desktop';
   const interaction = createInteraction({ stage, project, root: document, canvas, getBreakpoint: () => breakpoint });
+  const configurator = createConfigurator({
+    stage,
+    project,
+    root: document,
+    canvas,
+    openHotspot: interaction.openHotspot,
+    closeDetail: interaction.closeDetail,
+  });
   let layout = [];
   let targetPos = 0;
   let currentPos = 0;
@@ -76,11 +85,13 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
       currentPos = targetPos;
       needsRender = true;
     }
-    // Mit Hotspots, Look At oder Follow wird jedes Bild neu gerechnet, sonst nur nach dem Scrollen.
-    if (needsRender || interaction.live) {
+    // Mit Hotspots, Look At oder Follow wird jedes Bild neu gerechnet, sonst nur nach dem Scrollen,
+    // nach einer Wahl im Konfigurator oder solange ein Animationsclip läuft.
+    if (needsRender || interaction.live || configurator.live) {
       needsRender = false;
       interaction.reset();
       applyState(stage, evaluate(project, currentPos));
+      configurator.update(dt, currentPos);
       interaction.update(dt, currentPos);
       updateComponents(currentPos);
       renderStage(stage);
@@ -96,6 +107,7 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     await loadModel(stage, buffer);
     interaction.bind();
     applyState(stage, evaluate(project, currentPos));
+    configurator.update(0, currentPos);
     interaction.update(0, currentPos);
     renderStage(stage);
     canvas.dataset.ready = 'true';
@@ -103,5 +115,5 @@ export async function startPlayer({ project, canvas, modelUrl, modelBuffer, thro
     requestAnimationFrame(() => onFirstRender && onFirstRender(performance.now()));
   }
 
-  return { stage, interaction };
+  return { stage, interaction, configurator };
 }

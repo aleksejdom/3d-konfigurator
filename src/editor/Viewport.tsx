@@ -1,3 +1,5 @@
+import { dominant, optionProp } from '../core/actions.js';
+import { applyOptions, syncOptionElements, timelineWeights } from '../core/configurator.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -172,6 +174,8 @@ export function Viewport() {
     setBackground(stage, project.settings.background);
     applyFraming(stage, resolveFraming(project, breakpoint));
     applyState(stage, currentState(project, pos, draft));
+    // Varianten, Materialien und Sichtbarkeit so zeigen, wie die Timeline sie an dieser Stelle wählt.
+    applyOptions(stage, project, timelineWeights(stage, project));
     orbit.target.copy(stage.target);
     orbit.update();
   }, [project, pos, draft, modelVersion, breakpoint]);
@@ -206,6 +210,17 @@ export function Viewport() {
     );
     update(pos);
   }, [html, pos, project.sections]);
+
+  // Aktive Variante in Buttons, Karten, Auswahllisten und Slidern anzeigen.
+  useLayoutEffect(() => {
+    const state = currentState(project, pos, draft);
+    const selection: Record<string, string> = {};
+    for (const group of project.variantGroups) {
+      const choice = dominant(state[optionProp(group.id)] as string | Record<string, number> | undefined) ?? group.options[0]?.id;
+      if (choice) selection[group.id] = choice;
+    }
+    syncOptionElements(frameRef.current!, project, selection);
+  }, [html, project, pos, draft]);
 
   /** Komponente anklicken (auswählen) oder, wenn sie frei platziert ist, ziehen. */
   const onFramePointerDown = (event: React.PointerEvent) => {

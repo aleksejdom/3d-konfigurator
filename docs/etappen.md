@@ -43,10 +43,23 @@ Schließt Abnahmekriterium 3 ab.
 - Look At und Follow wirken zusätzlich zur Timeline; eigenes Verhalten für Touch-Geräte
 - Projektformat Version 3; ältere Projekte werden beim Öffnen umgestellt
 
+## Etappe 4: 3D-Konfigurator (erledigt, Stand 12.11.2026)
+
+Deckt Abnahmekriterium 4 ab.
+
+- Variantengruppen aus Bauteilen: alternative Meshes pro Wahl, auch „nichts“ für Ein- und Ausblenden
+- Materialgruppen: Farbe oder ein Material aus dem Modell für gewählte Bauteile
+- Aktionen an Buttons, Karten und direkt an Bauteilen (Klick oder Tap auf das Mesh): Variante oder Material wählen, nächste/vorherige Variante, Auswahl zurücksetzen, Animationsclip starten/stoppen, Kamera zu einem Hotspot fahren
+- Neue Komponenten: Auswahlliste und Varianten-Slider (Wischen, Pfeil-Schaltflächen, Punkte, Pfeiltasten). Modell, Buttons, Karten, Liste und Slider zeigen dieselbe aktive Wahl
+- Variantenregeln „nur verfügbar mit …“: gesperrte Varianten sind in der Oberfläche deaktiviert; fällt die Voraussetzung weg, rückt die erste verfügbare Wahl nach
+- Die Wahl des Besuchers hat Vorrang vor der Timeline und bleibt beim Scrollen erhalten. Sie endet durch die Aktion „Auswahl zurücksetzen“ oder beim Erreichen eines Abschnitts, der die Gruppe an die Timeline übergibt
+- Varianten in der Timeline: Wahl mit „Merken“ pro Abschnitt speichern; Wechsel hart an der Stelle oder mit einstellbarem Überblendbereich
+- Animationsclips aus dem Modell werden erkannt und lassen sich per Aktion abspielen
+- Projektformat Version 4; ältere Projekte werden beim Öffnen umgestellt
+
 ## Noch offen
 
 | Etappe | Inhalt | Abnahmekriterium |
 |---|---|---|
-| 4 | Konfigurator: Aktionen an Meshes und HTML-Elementen, Materialwechsel, Mesh-Slider, Variantenregeln, Vorrang der Besucherauswahl, Überblenden von Sichtbarkeit und Varianten | 4 |
 | 5 | Digitaler Zwilling: typisierte Datenbindungen, Testdaten, REST/JSON, WebSocket/SSE, Verbindungszustände | 5 |
-| 6 | HDRI/Skybox, Animationsclips aus dem Modell, Draco-Kompression, glTF mit Begleitdateien, Posterbild, reduzierte Bewegung, Vorschau-Link und QR-Code fürs WLAN, Messung auf echtem Gerät | 1 (Rest) |
+| 6 | HDRI/Skybox, Animationsclips an die Scroll-Timeline binden, Draco-Kompression, glTF mit Begleitdateien, Posterbild, reduzierte Bewegung, Vorschau-Link und QR-Code fürs WLAN, Messung auf echtem Gerät | 1 (Rest) |

@@ -61,3 +61,6 @@ export function sameValue(a: Value | undefined, b: Value | undefined): boolean {
   if (!Array.isArray(a) || !Array.isArray(b)) return JSON.stringify(a) === JSON.stringify(b);
   return (a as number[]).every((n, i) => Math.abs(n - (b as number[])[i]) < 1e-4);
 }
+
+// Für automatische Tests des Editors erreichbar.
+(window as unknown as { __editor: typeof editor }).__editor = editor;

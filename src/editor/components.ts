@@ -391,5 +391,7 @@ export const COMPONENT_LABELS: Record<ComponentType, string> = {
   button: 'Button',
   card: 'Karte',
   infobox: 'Infobox',
+  select: 'Auswahlliste',
+  slider: 'Varianten-Slider',
   instance: 'Instanz',
 };

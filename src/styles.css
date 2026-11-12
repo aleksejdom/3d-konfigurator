@@ -954,3 +954,46 @@ button.merken {
 .view-status {
   margin: 0 0 6px;
 }
+
+/* ---------- Konfigurator ---------- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  padding: 1px 2px 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+.chip button {
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+}
+
+.chips > button {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.option.is-current {
+  border-color: var(--accent);
+}
+
+.option .keyvalue-head {
+  gap: 6px;
+}
+
+.option .keyvalue-head span {
+  display: flex;
+  gap: 4px;
+}

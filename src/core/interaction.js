@@ -56,7 +56,9 @@ export function positionHotspots(stage, project, elements, { pos, activeId = nul
     const node = hotspot && stage.nodes.get(hotspot.nodeId);
     let visible = false;
     if (hotspot && node && hotspotPosition(stage, hotspot, world)) {
+      // Hängt der Hotspot an einer ausgeblendeten Variante, ist auch er nicht zu sehen.
       visible = true;
+      for (let o = node; o && visible; o = o.parent) visible = o.visible;
       if (hotspot.normal) {
         // Punkte auf der abgewandten Seite des Bauteils ausblenden.
         normal.fromArray(hotspot.normal).transformDirection(node.matrixWorld);

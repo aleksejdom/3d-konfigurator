@@ -28,7 +28,7 @@ const section = (id, name, extra = []) => ({
 });
 
 const project = {
-  formatVersion: 3,
+  formatVersion: 4,
   name: 'Export-Test',
   model: { file: 'sample.glb', stats: null },
   base: {
@@ -44,7 +44,38 @@ const project = {
     'node:model.scale': [1, 1, 1],
     'lookAt:la1.target': 'pointer',
     'lookAt:la1.strength': 1,
+    'option:vgA.value': 'oGriff',
+    'option:vgL.value': 'oOrange',
   },
+  // Konfigurator: Aufsatz als Mesh-Varianten, Lack als Material. "Signal" gibt es nur mit der Leuchte.
+  variantGroups: [
+    {
+      id: 'vgA',
+      name: 'Aufsatz',
+      kind: 'mesh',
+      fade: 0.2,
+      resetSections: ['c'],
+      options: [
+        { id: 'oGriff', name: 'Griff', nodeIds: ['Geraet/Aufsatz_Griff'] },
+        { id: 'oLeuchte', name: 'Leuchte', nodeIds: ['Geraet/Aufsatz_Leuchte'] },
+        { id: 'oOhne', name: 'Ohne Aufsatz', nodeIds: [] },
+      ],
+    },
+    {
+      id: 'vgL',
+      name: 'Lack',
+      kind: 'material',
+      targets: ['Geraet/Gehaeuse'],
+      fade: 0.2,
+      resetSections: [],
+      options: [
+        { id: 'oOrange', name: 'Orange' },
+        { id: 'oBlau', name: 'Blau', color: '#2f6fed' },
+        { id: 'oSignal', name: 'Signalgelb', material: 'Signal', requires: [{ groupId: 'vgA', optionId: 'oLeuchte' }] },
+      ],
+    },
+  ],
+  meshActions: [{ nodeId: 'Geraet/Drehknopf', action: { type: 'clip', clip: 'Knopf drehen', mode: 'toggle' } }],
   hotspots: [
     {
       id: 'hs1',
@@ -77,6 +108,11 @@ const project = {
         animation: { type: 'fade', in: [0, 0.15], out: [0.85, 1] },
         content: { slot_h: { text: 'Karte im Abschnitt Details' } },
       },
+      component('b_slider', 'slider', { groupId: 'vgA' }),
+      component('b_select', 'select', { groupId: 'vgL' }),
+      component('b_blau', 'button', { text: 'Blau', action: { type: 'select', groupId: 'vgL', optionId: 'oBlau' } }),
+      component('b_signal', 'button', { text: 'Signalgelb', action: { type: 'select', groupId: 'vgL', optionId: 'oSignal' } }),
+      component('b_reset', 'button', { text: 'Zurücksetzen', action: { type: 'reset', groupId: null } }),
     ]),
     section('c', 'Abschluss', [
       component('c_go', 'button', { text: 'Zum Drehknopf', action: { type: 'hotspot', hotspotId: 'hs1' } }),
@@ -98,6 +134,7 @@ const project = {
         'keyLight.color': { value: '#ff9a3c', scope: 'inherit' },
       },
     },
+    { id: 'k4', sectionId: 'c', t: 0.3, values: { 'option:vgA.value': { value: 'oOhne', scope: 'inherit', transition: 0.2 } } },
     { id: 'k3', sectionId: 'c', t: 0.5, values: { 'lookAt:la1.target': { value: 'camera', scope: 'inherit' } } },
     { id: 'k2', sectionId: 'c', t: 1, values: { 'node:model.rotation': { value: [0, 6.2832, 0], scope: 'inherit' } } },
   ],

@@ -47,6 +47,7 @@ interface EditorState {
   /** Ausgewählte HTML-Komponente. Kinder einer Instanz: "<Instanz>--<Vorlagen-Element>" */
   selectedComponent: string | null;
   selectedHotspot: string | null;
+  selectedGroup: string | null;
   /** Der nächste Klick auf das Modell setzt einen Hotspot */
   placingHotspot: boolean;
   /** Breakpoint, für den der Viewport anzeigt und Gestaltungswerte gespeichert werden */
@@ -81,6 +82,7 @@ export const useEditor = create<EditorState>(() => ({
   selectedSection: initialProject.sections[0].id,
   selectedComponent: null,
   selectedHotspot: null,
+  selectedGroup: null,
   placingHotspot: false,
   breakpoint: 'desktop',
   assets: {},
@@ -134,6 +136,7 @@ function fixSelection(project: Project) {
       componentRoot && JSON.stringify(project.sections).includes(`"id":"${componentRoot}"`) ? state.selectedComponent : null,
     selectedKeyframe: project.keyframes.some((k) => k.id === state.selectedKeyframe) ? state.selectedKeyframe : null,
     selectedHotspot: project.hotspots.some((h) => h.id === state.selectedHotspot) ? state.selectedHotspot : null,
+    selectedGroup: project.variantGroups.some((g) => g.id === state.selectedGroup) ? state.selectedGroup : null,
     selectedSection: project.sections.some((s) => s.id === state.selectedSection)
       ? state.selectedSection
       : (project.sections[0]?.id ?? null),
@@ -211,7 +214,9 @@ export function merken(selection: { prop: string; scope: Scope }[]) {
     for (const { prop, scope } of selection) {
       const value = readProp(stage, prop) as Value | undefined;
       if (value === undefined) continue;
-      keyframe.values[prop] = { ...keyframe.values[prop], value: tidy(value), scope };
+      // Varianten wechseln hart an der gemerkten Stelle. Ein Überblendbereich lässt sich am Punkt einstellen.
+      const hardSwitch = prop.startsWith('option:') && keyframe.values[prop]?.transition === undefined ? { transition: 0 } : {};
+      keyframe.values[prop] = { ...hardSwitch, ...keyframe.values[prop], value: tidy(value), scope };
       // Bauteile bekommen beim ersten Merken ihren Ausgangswert aus dem Modell.
       if (project.base[prop] === undefined && editor.defaults[prop] !== undefined) {
         project.base[prop] = editor.defaults[prop];
@@ -357,6 +362,7 @@ export async function openProject() {
       snapshots: snapshots.map((snapshot) => ({ ...snapshot, project: migrateProject(snapshot.project) })),
       selectedComponent: null,
       selectedHotspot: null,
+      selectedGroup: null,
       measurement: null,
     });
   } catch (error) {
@@ -371,6 +377,7 @@ export function newProject() {
   set({
     selectedComponent: null,
     selectedHotspot: null,
+    selectedGroup: null,
     project,
     past: [],
     future: [],
@@ -438,7 +445,10 @@ export async function exportProject(target: 'vanilla' | 'astro') {
 
 // Eine ausgewählte Komponente und ein ausgewählter Hotspot schließen sich aus.
 useEditor.subscribe((state, previous) => {
-  if (state.selectedComponent && state.selectedComponent !== previous.selectedComponent && state.selectedHotspot) {
-    set({ selectedHotspot: null });
+  if (state.selectedComponent && state.selectedComponent !== previous.selectedComponent && (state.selectedHotspot || state.selectedGroup)) {
+    set({ selectedHotspot: null, selectedGroup: null });
+  }
+  if (state.selectedHotspot && state.selectedHotspot !== previous.selectedHotspot && state.selectedGroup) {
+    set({ selectedGroup: null });
   }
 });

@@ -42,8 +42,11 @@ export function createStage(canvas) {
     nodes: new Map([['model', model]]),
     /** Kugel um das geladene Modell, für Kameraabstand und Hilfslinien */
     bounds: new THREE.Sphere(new THREE.Vector3(), 1),
-    /** Werte ohne eigenes 3D-Objekt, etwa Ziel und Stärke von Look At ("lookAt:<ID>.target") */
+    /** Werte ohne eigenes 3D-Objekt: Ziel und Stärke von Look At ("lookAt:<ID>.target"), Wahl einer Variantengruppe ("option:<ID>.value") */
     params: {},
+    /** Animationsclips des geladenen Modells und ihr Abspieler */
+    clips: [],
+    mixer: null,
     /** Kameraausschnitt des aktuellen Breakpoints */
     framing: { zoom: 1, shiftX: 0, shiftY: 0 },
   };
@@ -139,7 +142,8 @@ function collectStats(root, fileSize) {
     }
   });
 
-  return { fileSize, triangles, meshes, materials: materials.size, textures: [...textures.values()] };
+  const materialNames = [...new Set([...materials].map((material) => material.name).filter(Boolean))];
+  return { fileSize, triangles, meshes, materials: materials.size, materialNames, textures: [...textures.values()] };
 }
 
 /**
@@ -157,6 +161,8 @@ export function loadModel(stage, buffer) {
         stage.model.clear();
         stage.model.add(gltf.scene);
         indexNodes(stage, gltf.scene);
+        stage.clips = gltf.animations || [];
+        stage.mixer = stage.clips.length > 0 ? new THREE.AnimationMixer(gltf.scene) : null;
 
         const box = new THREE.Box3().setFromObject(gltf.scene);
         if (!box.isEmpty()) box.getBoundingSphere(stage.bounds);
@@ -165,7 +171,7 @@ export function loadModel(stage, buffer) {
         stage.camera.far = radius * 200;
         stage.camera.updateProjectionMatrix();
 
-        resolve(collectStats(gltf.scene, buffer.byteLength));
+        resolve({ ...collectStats(gltf.scene, buffer.byteLength), clips: stage.clips.map((clip) => clip.name) });
       },
       reject,
     );
@@ -195,7 +201,7 @@ export function applyState(stage, state) {
       stage.scene.environmentIntensity = value;
       continue;
     }
-    if (target.startsWith('lookAt:')) {
+    if (target.startsWith('lookAt:') || target.startsWith('option:')) {
       stage.params[prop] = value;
       continue;
     }
@@ -216,7 +222,7 @@ export function applyState(stage, state) {
 export function readProp(stage, prop) {
   const [target, field] = splitProp(prop);
   if (target === 'ambient') return stage.scene.environmentIntensity;
-  if (target.startsWith('lookAt:')) {
+  if (target.startsWith('lookAt:') || target.startsWith('option:')) {
     const value = stage.params[prop];
     // Mitten in einem Übergang zwischen zwei Zielen gilt das mit dem größeren Gewicht.
     if (value && typeof value === 'object') return Object.keys(value).sort((a, b) => value[b] - value[a])[0];

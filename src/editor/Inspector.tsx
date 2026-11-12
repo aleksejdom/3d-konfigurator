@@ -1,3 +1,5 @@
+import { ActionSelect } from './ConfiguratorPanels';
+import { setComponentGroup } from './configurator';
 import { useState } from 'react';
 import type { AnimationType, ComponentStyle } from '../core/types';
 import {
@@ -196,25 +198,27 @@ export function ComponentInspector({ id }: { id: string }) {
         </>
       )}
 
-      {(type === 'button' || container) && (
-        <Field label="Aktion bei Klick">
-          <select
-            value={content.action ? (content.action.type === 'close' ? 'close' : 'hotspot:' + content.action.hotspotId) : ''}
-            onChange={(e) => {
-              const value = e.target.value;
-              setContent(id, {
-                action: value === '' ? null : value === 'close' ? { type: 'close' } : { type: 'hotspot', hotspotId: value.slice(8) },
-              });
-            }}
-          >
-            <option value="">{type === 'button' ? 'Link öffnen' : 'Keine'}</option>
-            {project.hotspots.map((hotspot) => (
-              <option key={hotspot.id} value={'hotspot:' + hotspot.id}>
-                Kamera zu „{hotspot.name}“ fahren
+      {(type === 'select' || type === 'slider') && (
+        <Field label="Variantengruppe">
+          <select value={node.groupId ?? ''} onChange={(e) => setComponentGroup(id, e.target.value)}>
+            <option value="">Keine</option>
+            {project.variantGroups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
               </option>
             ))}
-            <option value="close">Detailansicht schließen</option>
           </select>
+        </Field>
+      )}
+
+      {(type === 'button' || container) && (
+        <Field label="Aktion bei Klick">
+          <ActionSelect
+            label="Aktion bei Klick"
+            value={content.action}
+            emptyLabel={type === 'button' ? 'Link öffnen' : 'Keine'}
+            onChange={(action) => setContent(id, { action })}
+          />
         </Field>
       )}
 
