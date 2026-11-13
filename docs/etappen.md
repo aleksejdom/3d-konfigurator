@@ -105,9 +105,19 @@ Schließt Abnahmekriterium 1 ab.
 - Timeline: Punkte kopieren und an anderer Stelle einfügen (Strg+C / Strg+V oder Schaltflächen)
 - Projektformat Version 8; Positionen in Prozent aus älteren Projekten werden in px umgerechnet (Bezug 1440 × 810 px, Tablet 820 × 1100, Mobile 390 × 780)
 
+## Gruppen, Hierarchie, Ordner beim Speichern (erledigt, Stand 14.11.2026)
+
+- Bauteile gruppieren: im Bereich „Modell“ unter „Szene“ mehrere Bauteile mit Strg- oder Umschalt-Klick wählen und „Gruppieren“. Die Gruppe ist selbst ein Bauteil mit Drehpunkt in der Mitte ihrer Bauteile; sie lässt sich bewegen, drehen, skalieren und pro Abschnitt merken
+- Eltern-Kind-Beziehungen: Ein Bauteil auf ein anderes ziehen macht es zu dessen Kind. Kinder folgen Bewegung, Drehung und Skalierung des Elternteils. Bauteile behalten beim Umhängen ihren Platz. Gilt in Editor, Vorschau und Export
+- Szenenbaum mit Einrückung, Führungslinien, Symbolen je Art, Anzahl der Kinder, Auf- und Zuklappen; Gruppen umbenennen und auflösen
+- Speichern und Exportieren legen am gewählten Ort einen eigenen Ordner an: `<Projektname>` für das Projekt, `<Projektname>-html` und `<Projektname>-astro` für die Exporte
+- Projektformat Version 9
+
 ## Bekannte Grenzen
 
 - Texturen im Format KTX2/Basis werden nicht geladen
+- Für ein Bauteil gemerkte Positionen zählen nach dem Umhängen ab dem neuen Elternteil und müssen neu gemerkt werden; der Editor weist darauf hin
+- Beim erneuten Export in denselben Ordner bleiben Dateien stehen, die der neue Export nicht mehr enthält
 - Zusätzliche Lichter werfen keine Schatten. Flächenlichter wirken nur auf Standard- und Physical-Materialien
 - Lichter werden über die Liste ausgewählt, nicht per Klick im Viewport
 - Ausrichten an der Auswahl und Verteilen gelten für frei platzierte Elemente; Elemente in der Textspalte folgen der Reihenfolge der Ebenen

@@ -12,7 +12,7 @@ describe('Projektformat', () => {
   it('öffnet Projekte der Version 5 mit Standardwerten für Umgebung, Poster und reduzierte Bewegung', () => {
     const old = { ...createProject(), formatVersion: 5, settings: { background: '#101010', scrollSmoothing: 0.2 } } as Record<string, unknown>;
     const project = migrateProject(old);
-    expect(project.formatVersion).toBe(8);
+    expect(project.formatVersion).toBe(9);
     expect(project.settings.background).toBe('#101010');
     expect(project.settings.environment).toEqual({ file: null, showBackground: false, rotation: 0, backgroundIntensity: 1, backgroundBlur: 0 });
     expect(project.settings.poster).toBeNull();

@@ -8,12 +8,15 @@ import { createProject, migrateProject, uid } from './project';
 import {
   canPickDirectory,
   dirLabel,
+  dirName,
   downloadZip,
+  folderName,
   pickDirectory,
   pickFile,
   pickModel,
   readBinary,
   readText,
+  subDirectory,
   writeFiles,
   type DirRef,
   type FileMap,
@@ -73,6 +76,8 @@ interface EditorState {
   modelResources: Record<string, ArrayBuffer>;
   /** Zählt hoch, sobald ein Modell geladen wurde */
   modelVersion: number;
+  /** Zählt hoch, sobald sich die Hierarchie der Bauteile in der Szene geändert hat */
+  treeVersion: number;
   dir: DirRef | null;
   unsaved: boolean;
   snapshots: Snapshot[];
@@ -110,6 +115,7 @@ export const useEditor = create<EditorState>(() => ({
   modelBuffer: null,
   modelResources: {},
   modelVersion: 0,
+  treeVersion: 0,
   dir: null,
   unsaved: false,
   snapshots: [],
@@ -478,13 +484,23 @@ export async function saveProject(saveAs = false) {
       notify('Dieser Browser erlaubt keinen Ordnerzugriff. Das Projekt wurde als ZIP heruntergeladen.');
       return;
     }
-    dir = await pickDirectory('Projektordner wählen');
-    if (!dir) return;
+    const name = folderName(get().project.name);
+    const place = await pickDirectory(`Speicherort wählen – das Projekt wird dort als Ordner „${name}“ angelegt`);
+    if (!place) return;
+    try {
+      // Das Projekt bekommt einen eigenen Ordner. Ist der gewählte Ordner schon der Projektordner
+      // (gleicher Name oder es liegt eine project.json darin), wird direkt dort gespeichert.
+      const isProjectFolder = dirName(place) === name || (await readText(place, 'project.json')) !== null;
+      dir = isProjectFolder ? place : await subDirectory(place, name);
+    } catch (error) {
+      notify('Der Projektordner konnte nicht angelegt werden: ' + (error as Error).message);
+      return;
+    }
   }
   try {
     await writeFiles(dir, projectFiles());
     set({ dir, unsaved: false });
-    notify('Gespeichert in ' + dirLabel(dir));
+    notify('Gespeichert im Ordner ' + dirLabel(dir));
   } catch (error) {
     notify('Speichern fehlgeschlagen: ' + (error as Error).message);
   }
@@ -499,7 +515,7 @@ export async function openProject() {
   if (!dir) return;
   try {
     const text = await readText(dir, 'project.json');
-    if (!text) throw new Error('Im Ordner liegt keine project.json.');
+    if (!text) throw new Error('Im Ordner liegt keine project.json. Wähle den Projektordner selbst, nicht den Ordner darüber.');
     const project = migrateProject(JSON.parse(text));
     const snapshotText = await readText(dir, 'snapshots.json');
     const model = project.model.file ? await readBinary(dir, 'assets/' + project.model.file) : null;
@@ -619,11 +635,14 @@ export async function exportProject(target: 'vanilla' | 'astro') {
     downloadZip(`${project.name}-${target}`, all);
     return;
   }
-  const dir = await pickDirectory('Leeren Ordner für den Export wählen');
-  if (!dir) return;
+  // Der Export bekommt am gewählten Ort einen eigenen Ordner mit allen Dateien.
+  const name = `${folderName(project.name)}-${target === 'vanilla' ? 'html' : 'astro'}`;
+  const place = await pickDirectory(`Speicherort wählen – der Export wird dort als Ordner „${name}“ angelegt`);
+  if (!place) return;
   try {
+    const dir = dirName(place) === name ? place : await subDirectory(place, name);
     await writeFiles(dir, all);
-    notify(`Export geschrieben nach ${dirLabel(dir)}. ${target === 'vanilla' ? 'Zum Ansehen index.html öffnen.' : 'Start: npm install, dann npm run dev.'}`);
+    notify(`Export liegt im Ordner ${dirLabel(dir)}. ${target === 'vanilla' ? 'Zum Ansehen darin index.html öffnen.' : 'Start: npm install, dann npm run dev.'}`);
   } catch (error) {
     notify('Export fehlgeschlagen: ' + (error as Error).message);
   }

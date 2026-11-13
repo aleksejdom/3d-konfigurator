@@ -41,6 +41,11 @@ export function createStage(canvas) {
     /** Blickziel der Kamera */
     target: new THREE.Vector3(),
     keyLight,
+    /** Ausgangslage der Bauteile im geladenen Modell und die angelegten Gruppen, siehe applyHierarchy() */
+    /** @type {Map<string, any> | null} */
+    originals: null,
+    /** @type {Map<string, any>} */
+    groups: new Map(),
     /** Zusätzliche Lichter des Projekts: ID -> THREE.Light, siehe syncLights() */
     /** @type {Map<string, any>} */
     lights: new Map(),
@@ -64,6 +69,76 @@ export function createStage(canvas) {
     /** Kameraausschnitt des aktuellen Breakpoints */
     framing: { zoom: 1, shiftX: 0, shiftY: 0 },
   };
+}
+
+// ---------- Gruppen und Eltern-Kind-Beziehungen ----------
+
+/** ID des Bauteils, unter dem ein Objekt hängt ("model" für die oberste Ebene). */
+export function parentId(object) {
+  for (let parent = object.parent; parent; parent = parent.parent) {
+    if (parent.userData.nodeId) return parent.userData.nodeId;
+    if (parent.name === 'model') return 'model';
+  }
+  return 'model';
+}
+
+/**
+ * Baut die Hierarchie des Projekts auf dem geladenen Modell auf: legt Gruppen an und hängt Bauteile um.
+ * Kinder folgen danach jeder Bewegung, Drehung und Skalierung ihres Elternteils.
+ * Der Aufbau beginnt immer bei der Ausgangslage des Modells, damit Editor, Vorschau und Export
+ * dieselben Werte erhalten. Bauteile behalten beim Umhängen ihren Platz in der Szene.
+ * @param {import('./types').Hierarchy | undefined} hierarchy
+ */
+export function applyHierarchy(stage, hierarchy) {
+  const { groups = [], parents = {} } = hierarchy || {};
+  if (!stage.originals) {
+    stage.originals = new Map();
+    for (const [id, object] of stage.nodes) {
+      if (id === 'model') continue;
+      stage.originals.set(id, { parent: object.parent, position: object.position.clone(), quaternion: object.quaternion.clone(), scale: object.scale.clone() });
+    }
+  }
+  // 1. Zurück zur Ausgangslage
+  for (const [id, original] of stage.originals) {
+    const object = stage.nodes.get(id);
+    if (!object) continue;
+    original.parent.add(object);
+    object.position.copy(original.position);
+    object.quaternion.copy(original.quaternion);
+    object.scale.copy(original.scale);
+  }
+  for (const [id, group] of stage.groups) {
+    group.removeFromParent();
+    stage.nodes.delete(id);
+  }
+  stage.groups = new Map();
+
+  // 2. Gruppen anlegen. Ihre Position ist der Drehpunkt der Gruppe.
+  for (const entry of groups) {
+    const group = new THREE.Group();
+    group.name = entry.name;
+    group.userData = { nodeId: entry.id, isGroup: true };
+    stage.groups.set(entry.id, group);
+    stage.nodes.set(entry.id, group);
+  }
+  for (const entry of groups) {
+    const group = stage.groups.get(entry.id);
+    (stage.nodes.get(entry.parent) || stage.model).add(group);
+    group.position.fromArray(entry.position);
+  }
+
+  // 3. Bauteile umhängen, ohne dass sie ihren Platz in der Szene verlassen.
+  const inside = (object, ancestor) => {
+    for (let o = object; o; o = o.parent) if (o === ancestor) return true;
+    return false;
+  };
+  for (const [childId, targetId] of Object.entries(parents)) {
+    const child = stage.nodes.get(childId);
+    const target = stage.nodes.get(targetId);
+    if (!child || !target || child === stage.model || inside(target, child)) continue;
+    target.attach(child);
+  }
+  stage.model.updateMatrixWorld(true);
 }
 
 // ---------- Zusätzliche Lichter ----------
@@ -317,7 +392,10 @@ export function loadModel(stage, buffer, options = {}) {
         stage.model.add(gltf.scene);
         indexNodes(stage, gltf.scene);
         stage.clips = gltf.animations || [];
-        stage.mixer = stage.clips.length > 0 ? new THREE.AnimationMixer(gltf.scene) : null;
+        // Die Wurzel des Abspielers ist das ganze Modell, damit Clips auch umgehängte Bauteile finden.
+        stage.mixer = stage.clips.length > 0 ? new THREE.AnimationMixer(stage.model) : null;
+        stage.originals = null;
+        stage.groups = new Map();
 
         const box = new THREE.Box3().setFromObject(gltf.scene);
         if (!box.isEmpty()) box.getBoundingSphere(stage.bounds);

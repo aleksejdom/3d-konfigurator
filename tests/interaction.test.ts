@@ -100,7 +100,7 @@ describe('Hotspots', () => {
     delete v2.lookAts;
     delete v2.follows;
     const project = migrateProject(v2);
-    expect(project.formatVersion).toBe(8);
+    expect(project.formatVersion).toBe(9);
     expect([project.hotspots, project.lookAts, project.follows]).toEqual([[], [], []]);
   });
 });

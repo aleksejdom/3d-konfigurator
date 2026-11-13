@@ -295,13 +295,119 @@ small {
   color: var(--muted);
 }
 
+/* Baum der Bauteile: Einrückung mit Führungslinien, auf- und zuklappbar */
+.tree,
+.tree ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .tree {
-  max-height: 220px;
-  overflow-y: auto;
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.tree-row {
+  --indent: 16px;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  min-height: 26px;
+  padding-left: calc(var(--depth) * var(--indent));
+  border-radius: 4px;
+  /* Eine senkrechte Linie pro Ebene zeigt, wozu die Zeile gehört. */
+  background-image: repeating-linear-gradient(to right, transparent 0 8px, color-mix(in srgb, var(--muted) 45%, transparent) 8px 9px, transparent 9px var(--indent));
+  background-size: calc(var(--depth) * var(--indent)) 100%;
+  background-repeat: no-repeat;
+}
+
+.tree-row:hover {
+  background-color: var(--raised);
+}
+
+.tree-row.picked {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.tree-row.selected {
+  background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tree-row.drop {
+  outline: 1.5px dashed var(--accent);
+  outline-offset: -1px;
+}
+
+.tree-row button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.tree-toggle {
+  flex: none;
+  width: 18px;
+  height: 22px;
+  padding: 0;
+  color: var(--muted);
+}
+
+.tree-toggle .chevron.shut {
+  transform: rotate(0deg);
+}
+
+.tree-main {
+  flex: 1;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 3px 4px;
+  text-align: left;
+}
+
+.tree-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-main small {
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .tree .kind {
+  flex: none;
   color: var(--muted);
+}
+
+.tree .kind.group,
+.tree .kind.model {
+  color: var(--accent);
+}
+
+.tree-action {
+  flex: none;
+  padding: 3px 4px;
+  color: var(--muted);
+  opacity: 0;
+}
+
+.tree-row:hover .tree-action,
+.tree-row.selected .tree-action,
+.tree-action:focus-visible {
+  opacity: 1;
+}
+
+.tree-out {
+  margin-top: 6px;
 }
 
 .stats {

@@ -15,6 +15,7 @@ import { positionHotspots } from '../core/interaction.js';
 import { renderCss, renderFontFaces, renderFreeLayer, renderHotspotLayer, renderSections } from '../export/page.js';
 import { addComponent, effectiveStyle, locate, removeComponent, setStyle, setStyles } from './components';
 import { addHotspot } from './interactions';
+import { syncHierarchy } from './hierarchy';
 import { SCOPE_LABELS, lastScope, posLabel, propGroups } from './labels';
 import { currentState, editor, sameValue } from './stage';
 import { discardDraft, importModel, loadSampleModel, merken, notify, selectComponent, selectedComponents, setDraft, setSceneValue, useEditor } from './store';
@@ -92,6 +93,8 @@ export function Viewport() {
   const pos = useEditor((s) => s.pos);
   const draft = useEditor((s) => s.draft);
   const modelVersion = useEditor((s) => s.modelVersion);
+  // Gruppen werden beim Umbau der Hierarchie neu angelegt; der Anfasser hängt sich danach an das neue Objekt.
+  const treeVersion = useEditor((s) => s.treeVersion);
   const selectedNode = useEditor((s) => s.selectedNode);
   const drawCalls = useEditor((s) => s.drawCalls);
   const breakpoint = useEditor((s) => s.breakpoint);
@@ -242,6 +245,8 @@ export function Viewport() {
   useEffect(() => {
     const { stage, orbit } = editor;
     if (!stage || !orbit) return;
+    // Gruppen und umgehängte Bauteile zuerst aufbauen (nach Laden, Undo oder Redo).
+    if (syncHierarchy(project, modelVersion)) useEditor.setState({ treeVersion: useEditor.getState().treeVersion + 1 });
     applyEnvironment(stage, project.settings);
     applyFraming(stage, resolveFraming(project, breakpoint));
     syncLights(stage, project);
@@ -328,7 +333,7 @@ export function Viewport() {
     const object = selectedNode ? stage.nodes.get(selectedNode) : undefined;
     if (object) gizmo.attach(object);
     else gizmo.detach();
-  }, [selectedNode, selectedLight, lightHandle, lightIds, mode, modelVersion]);
+  }, [selectedNode, selectedLight, lightHandle, lightIds, mode, modelVersion, treeVersion]);
 
   // ---------- Seite über dem Canvas ----------
 

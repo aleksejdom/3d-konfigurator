@@ -1,6 +1,6 @@
 import type { Budget, Component, ComponentAnimation, ComponentType, Project, Section, ProjectData } from '../core/types';
 
-export const FORMAT_VERSION = 8;
+export const FORMAT_VERSION = 9;
 
 export const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -74,6 +74,7 @@ export function createProject(): Project {
     templates: [],
     fonts: [],
     lights: [],
+    hierarchy: { groups: [], parents: {} },
     hotspots: [],
     lookAts: [],
     follows: [],
@@ -163,6 +164,8 @@ export function migrateProject(data: unknown): Project {
     // Seit Version 8
     fonts: raw.fonts ?? [],
     lights: raw.lights ?? [],
+    // Seit Version 9
+    hierarchy: { groups: raw.hierarchy?.groups ?? [], parents: raw.hierarchy?.parents ?? {} },
     // Seit Version 3
     hotspots: raw.hotspots ?? [],
     lookAts: raw.lookAts ?? [],

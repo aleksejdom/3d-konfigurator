@@ -124,7 +124,7 @@ describe('Projektformat', () => {
       settings: { background: '#000000', scrollSmoothing: 0 },
     };
     const project = migrateProject(v1);
-    expect(project.formatVersion).toBe(8);
+    expect(project.formatVersion).toBe(9);
     expect(project.templates).toEqual([]);
     expect([project.hotspots, project.lookAts, project.follows]).toEqual([[], [], []]);
     expect(project.sections[0].components.map((c) => [c.id, c.type, c.text, c.href])).toEqual([

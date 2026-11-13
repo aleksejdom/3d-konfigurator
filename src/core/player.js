@@ -10,7 +10,7 @@ import { bindComponents, breakpointFor, resolveFraming } from './components.js';
 import { createInteraction } from './interaction.js';
 import { createConfigurator } from './configurator.js';
 import { createDataBindings } from './data.js';
-import { applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, loadModel, renderStage, resizeStage, syncLights } from './stage.js';
+import { applyEnvironment, applyFraming, applyHierarchy, applyState, createStage, loadEnvironment, loadModel, renderStage, resizeStage, syncLights } from './stage.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -202,6 +202,8 @@ export async function startPlayer({
       resourceUrl,
       dracoPath,
     });
+    // Gruppen und Eltern-Kind-Beziehungen aus dem Editor
+    applyHierarchy(stage, project.hierarchy);
     await environmentReady;
     interaction.bind();
     applyState(stage, evaluate(project, currentPos));

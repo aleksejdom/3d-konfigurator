@@ -10,8 +10,15 @@ import {
   Image as ImageIcon,
   Info,
   Layers as LayersIcon,
+  ChevronRight,
+  CircleDashed,
+  CornerLeftUp,
+  Cuboid,
+  Folder,
+  FolderPlus,
   Lightbulb,
   Pencil,
+  Ungroup,
   Ruler,
   Type,
   LayoutList,
@@ -28,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { LightList } from './LightPanels';
+import { createGroup, currentParent, isInside, renameGroup, setParent, ungroup } from './hierarchy';
 import { FONT_LABELS } from './fonts';
 import { Field, NumberInput } from './fields';
 import { SHOW_ALL } from './Block';
@@ -177,40 +185,167 @@ function Sections() {
 
 const TREE_LIMIT = 400;
 
+interface TreeNode {
+  id: string;
+  kind: 'model' | 'group' | 'mesh' | 'empty';
+  children: TreeNode[];
+}
+
+/** Liest die Hierarchie aus der Szene, so wie sie nach Gruppieren und Umhängen aufgebaut ist. */
+function readTree(): TreeNode | null {
+  const stage = editor.stage;
+  if (!stage) return null;
+  const collect = (object: { children: unknown[] }): TreeNode[] =>
+    (object.children as { userData: { nodeId?: string; isGroup?: boolean }; isMesh?: boolean; children: unknown[] }[]).flatMap((child) => {
+      const id = child.userData.nodeId;
+      // Objekte ohne ID (z. B. die Wurzel der glTF-Szene) erscheinen nicht; ihre Kinder rücken auf.
+      if (!id) return collect(child);
+      return [{ id, kind: child.userData.isGroup ? 'group' : child.isMesh ? 'mesh' : 'empty', children: collect(child) } as TreeNode];
+    });
+  return { id: 'model', kind: 'model', children: collect(stage.model) };
+}
+
+const TREE_ICON = { model: Box, group: Folder, mesh: Cuboid, empty: CircleDashed };
+
 function SceneTree() {
   const modelVersion = useEditor((s) => s.modelVersion);
+  const treeVersion = useEditor((s) => s.treeVersion);
   const selected = useEditor((s) => s.selectedNode);
-  const nodes = useMemo(() => {
-    const stage = editor.stage;
-    if (!stage) return [];
-    return [...stage.nodes.entries()].map(([id, object]) => ({
-      id,
-      depth: id === 'model' ? 0 : id.split('/').length,
-      isMesh: (object as { isMesh?: boolean }).isMesh === true,
-    }));
-  }, [modelVersion]);
+  const tree = useMemo(readTree, [modelVersion, treeVersion]);
+  /** Weitere mit Strg- oder Umschalt-Klick gewählte Bauteile, zum Gruppieren */
+  const [picked, setPicked] = useState<string[]>([]);
+  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [dragged, setDragged] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
 
-  return (
-    <Block id="tree" icon={ListTree} title="Szene" closed>
-      <ul className="list tree">
-        {nodes.slice(0, TREE_LIMIT).map((node) => (
-          <li key={node.id} className={node.id === selected ? 'selected' : ''}>
-            <button
-              className="list-main"
-              style={{ paddingLeft: 8 + node.depth * 12 }}
-              onClick={() => useEditor.setState({ selectedNode: node.id })}
-              title={node.id}
-            >
-              <span className="kind">{node.id === 'model' ? '◆' : node.isMesh ? '▣' : '▢'}</span> {nodeName(node.id)}
+  const chosen = selected && selected !== 'model' ? [selected, ...picked.filter((id) => id !== selected)] : picked;
+  const select = (id: string, additive: boolean) => {
+    if (additive && selected && id !== 'model') {
+      setPicked(chosen.includes(id) ? chosen.filter((other) => other !== id && other !== selected) : [...picked, id]);
+      return;
+    }
+    setPicked([]);
+    useEditor.setState({ selectedNode: id });
+  };
+  const toggle = (id: string) => {
+    const next = new Set(closed);
+    if (!next.delete(id)) next.add(id);
+    setClosed(next);
+  };
+
+  let rows = 0;
+  const render = (node: TreeNode, depth: number): React.ReactNode => {
+    if (rows++ >= TREE_LIMIT) return null;
+    const Icon = TREE_ICON[node.kind];
+    const open = !closed.has(node.id);
+    const droppable = dragged !== null && dragged !== node.id && !isInside(node.id, dragged);
+    return (
+      <li key={node.id} role="treeitem" aria-expanded={node.children.length > 0 ? open : undefined} aria-selected={node.id === selected}>
+        <div
+          className={`tree-row ${node.id === selected ? 'selected' : ''} ${chosen.includes(node.id) ? 'picked' : ''} ${over === node.id && droppable ? 'drop' : ''}`}
+          style={{ ['--depth' as string]: depth }}
+          draggable={node.id !== 'model' && renaming !== node.id}
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', node.id);
+            e.dataTransfer.effectAllowed = 'move';
+            setDragged(node.id);
+          }}
+          onDragEnd={() => {
+            setDragged(null);
+            setOver(null);
+          }}
+          onDragOver={(e) => {
+            if (!droppable) return;
+            e.preventDefault();
+            setOver(node.id);
+          }}
+          onDragLeave={() => over === node.id && setOver(null)}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (dragged && droppable) setParent(dragged, node.id);
+            setDragged(null);
+            setOver(null);
+          }}
+        >
+          {node.children.length > 0 ? (
+            <button className="tree-toggle" onClick={() => toggle(node.id)} aria-label={open ? `${nodeName(node.id)} zuklappen` : `${nodeName(node.id)} aufklappen`}>
+              <ChevronRight size={13} className={open ? 'chevron' : 'chevron shut'} aria-hidden />
             </button>
-          </li>
-        ))}
+          ) : (
+            <span className="tree-toggle" />
+          )}
+          {renaming === node.id ? (
+            <input
+              className="list-rename"
+              aria-label="Name der Gruppe"
+              autoFocus
+              defaultValue={nodeName(node.id)}
+              onFocus={(e) => e.target.select()}
+              onBlur={(e) => {
+                renameGroup(node.id, e.target.value);
+                setRenaming(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+                if (e.key === 'Escape') setRenaming(null);
+              }}
+            />
+          ) : (
+            <button
+              className="tree-main"
+              onClick={(e) => select(node.id, e.ctrlKey || e.metaKey || e.shiftKey)}
+              onDoubleClick={() => node.kind === 'group' && setRenaming(node.id)}
+              title={node.kind === 'group' ? 'Gruppe · Doppelklick zum Umbenennen' : node.id}
+            >
+              <Icon size={14} aria-hidden className={`kind ${node.kind}`} />
+              <span>{nodeName(node.id)}</span>
+              {node.children.length > 0 && <small>{node.children.length}</small>}
+            </button>
+          )}
+          {node.kind === 'group' && renaming !== node.id && (
+            <>
+              <button className="tree-action" onClick={() => setRenaming(node.id)} aria-label={`${nodeName(node.id)} umbenennen`} title="Umbenennen">
+                <Pencil size={12} aria-hidden />
+              </button>
+              <button className="tree-action" onClick={() => ungroup(node.id)} aria-label={`${nodeName(node.id)} auflösen`} title="Gruppe auflösen, Bauteile bleiben erhalten">
+                <Ungroup size={13} aria-hidden />
+              </button>
+            </>
+          )}
+        </div>
+        {node.children.length > 0 && open && <ul role="group">{node.children.map((child) => render(child, depth + 1))}</ul>}
+      </li>
+    );
+  };
+
+  const parent = selected && selected !== 'model' ? currentParent(selected) : null;
+  return (
+    <Block
+      id="tree"
+      icon={ListTree}
+      title="Szene"
+      actions={
+        <button onClick={() => (createGroup(chosen), setPicked([]))} disabled={chosen.length === 0} title="Gewählte Bauteile zu einer Gruppe zusammenfassen">
+          <FolderPlus size={14} aria-hidden />
+          Gruppieren
+        </button>
+      }
+    >
+      <ul className="tree" role="tree" aria-label="Bauteile des Modells">
+        {tree && render(tree, 0)}
       </ul>
-      {nodes.length > TREE_LIMIT && (
-        <p className="hint">
-          {nodes.length - TREE_LIMIT} weitere Bauteile sind nicht aufgelistet. Sie lassen sich im Viewport anklicken.
-        </p>
+      {rows > TREE_LIMIT && <p className="hint">{rows - TREE_LIMIT} weitere Bauteile sind nicht aufgelistet. Sie lassen sich im Viewport anklicken.</p>}
+      {parent && parent !== 'model' && (
+        <button className="tree-out" onClick={() => setParent(selected!, currentParent(parent))}>
+          <CornerLeftUp size={14} aria-hidden />
+          „{nodeName(selected!)}“ eine Ebene nach oben
+        </button>
       )}
+      <p className="hint">
+        Bauteil auf ein anderes ziehen: Es wird dessen Kind und folgt seiner Bewegung und Drehung. Mehrere Bauteile wählst du mit
+        Strg- oder Umschalt-Klick und fasst sie mit „Gruppieren“ zusammen.
+      </p>
     </Block>
   );
 }

@@ -27,6 +27,29 @@ export async function pickDirectory(title: string): Promise<DirRef | null> {
   }
 }
 
+/** Name, der sich als Ordnername eignet. */
+export function folderName(name: string, fallback = 'Projekt'): string {
+  const clean = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').replace(/[. ]+$/, '').trim();
+  return clean || fallback;
+}
+
+/** Unterordner in einem Ordner; wird angelegt, wenn es ihn noch nicht gibt. */
+export async function subDirectory(dir: DirRef, name: string): Promise<DirRef> {
+  if (dir.kind === 'tauri') {
+    const fs = await import('@tauri-apps/plugin-fs');
+    const { join } = await import('@tauri-apps/api/path');
+    const path = await join(dir.path, name);
+    await fs.mkdir(path, { recursive: true });
+    return { kind: 'tauri', path };
+  }
+  return { kind: 'fsa', handle: await dir.handle.getDirectoryHandle(name, { create: true }) };
+}
+
+/** Letzter Teil des Ordnerpfads. */
+export function dirName(dir: DirRef): string {
+  return dir.kind === 'tauri' ? dir.path.split(/[\\/]/).filter(Boolean).pop() || '' : dir.handle.name;
+}
+
 async function fsaFile(dir: FileSystemDirectoryHandle, path: string, create: boolean) {
   const parts = path.split('/');
   const name = parts.pop()!;
@@ -161,7 +184,8 @@ export async function pickModel(): Promise<PickedModel | null> {
 export function downloadZip(name: string, files: FileMap): void {
   const entries: Record<string, Uint8Array> = {};
   for (const [path, content] of Object.entries(files)) {
-    entries[path] = typeof content === 'string' ? strToU8(content) : content;
+    // Alles liegt in einem Ordner mit dem Namen des Archivs.
+    entries[`${folderName(name)}/${path}`] = typeof content === 'string' ? strToU8(content) : content;
   }
   const blob = new Blob([zipSync(entries) as BlobPart], { type: 'application/zip' });
   const link = document.createElement('a');

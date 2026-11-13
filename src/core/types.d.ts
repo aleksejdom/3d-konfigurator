@@ -1,4 +1,4 @@
-// Projektformat des 3D-Web-Editors (Version 8).
+// Projektformat des 3D-Web-Editors (Version 9).
 // Diese Typen beschreiben project.json. Editor, Vorschau und Export lesen dasselbe Format.
 
 export type Vec3 = [number, number, number];
@@ -406,6 +406,26 @@ export interface SceneLight {
   type: 'spot' | 'area' | 'point';
 }
 
+/** Gruppe von Bauteilen. Sie ist selbst ein Bauteil ("node:<ID>") und lässt sich bewegen, drehen und merken. */
+export interface NodeGroup {
+  id: string;
+  name: string;
+  /** Bauteil oder Gruppe, unter der die Gruppe hängt ("model" = oberste Ebene) */
+  parent: string;
+  /** Drehpunkt der Gruppe im Koordinatensystem ihres Elternteils */
+  position: Vec3;
+}
+
+/**
+ * Hierarchie der Bauteile, soweit sie vom geladenen Modell abweicht.
+ * Kinder folgen der Bewegung, Drehung und Skalierung ihres Elternteils.
+ */
+export interface Hierarchy {
+  groups: NodeGroup[];
+  /** Umgehängte Bauteile: ID des Bauteils -> ID des neuen Elternteils (Bauteil, Gruppe oder "model") */
+  parents: Record<string, string>;
+}
+
 /** Seitenbreite und Inhaltsbereich. Texte und frei platzierte Elemente richten sich am Inhaltsbereich aus. */
 export interface PageLayout {
   /** Größte Breite der Seite in px. 0 = volle Fensterbreite */
@@ -417,7 +437,7 @@ export interface PageLayout {
 }
 
 export interface Project {
-  formatVersion: 8;
+  formatVersion: 9;
   name: string;
   /** resources: Begleitdateien eines .gltf (Puffer und Texturen), relativ zur Modelldatei */
   model: { file: string | null; stats: ModelStats | null; resources?: string[] };
@@ -428,6 +448,7 @@ export interface Project {
   templates: Template[];
   fonts: ProjectFont[];
   lights: SceneLight[];
+  hierarchy: Hierarchy;
   hotspots: Hotspot[];
   lookAts: LookAt[];
   follows: Follow[];

@@ -32,8 +32,11 @@ export const EASING_LABELS: Record<string, string> = {
   sineInOut: 'Sanft',
 };
 
+/** Namen der Gruppen des Projekts: ID -> Name. Wird bei jeder Änderung des Projekts aktualisiert. */
+export const groupNames = new Map<string, string>();
+
 export function nodeName(id: string): string {
-  return id === 'model' ? 'Modell' : id.split('/').pop()!;
+  return id === 'model' ? 'Modell' : (groupNames.get(id) ?? id.split('/').pop()!);
 }
 
 /** "camera" oder "node:<ID>" als lesbarer Name */
