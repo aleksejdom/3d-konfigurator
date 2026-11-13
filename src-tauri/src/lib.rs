@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 use tiny_http::{Header, Method, Request, Response, Server};
 
 /// Laufender Vorschau-Server und die Messungen, die Geräte gemeldet haben.
