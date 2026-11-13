@@ -109,8 +109,16 @@ export async function loadEnvironment(stage, url, name = url || '') {
   if (stage.environmentTexture) stage.environmentTexture.dispose();
   stage.environmentTexture = null;
   if (!url) return;
-  const texture = /\.hdr$/i.test(name) ? await new HDRLoader().loadAsync(url) : await new THREE.TextureLoader().loadAsync(url);
-  if (!/\.hdr$/i.test(name)) texture.colorSpace = THREE.SRGBColorSpace;
+  let texture;
+  if (/\.hdr$/i.test(name)) {
+    texture = await new HDRLoader().loadAsync(url);
+  } else {
+    // Über fetch statt über ein <img>, damit das Panorama auch beim Öffnen per Doppelklick nutzbar ist.
+    const bitmap = await new THREE.ImageBitmapLoader().setOptions({ imageOrientation: 'flipY' }).loadAsync(url);
+    texture = new THREE.CanvasTexture(bitmap);
+    texture.flipY = false;
+    texture.colorSpace = THREE.SRGBColorSpace;
+  }
   texture.mapping = THREE.EquirectangularReflectionMapping;
   stage.environmentTexture = texture;
 }
@@ -349,21 +357,76 @@ export function defaultBase(stage) {
 export const clipProp = (name) => `clip:${name}.time`;
 
 /**
- * Stellt Animationsclips auf die Position, die die Timeline vorgibt ("clip:<Name>.time").
- * So läuft eine Animation des Modells mit dem Scrollen vor und zurück.
- * @param {Set<string>} [skip] Clips, die gerade frei laufen (per Aktion oder Messwert gestartet)
+ * Animationsclips des Modells für dieses Bild einstellen und weiterspielen. Drei Quellen, in dieser Rangfolge:
+ * 1. Clips, die gerade frei laufen (per Aktion oder Messwert gestartet) - stehen in skip und bleiben unberührt.
+ * 2. Clips des aktuellen Abschnitts (section.clips): in Schleife, einmal oder mit dem Scrollen.
+ * 3. Clips mit gemerkter Position in der Timeline ("clip:<Name>.time").
+ *
+ * @param {import('./types').Project} project
+ * @param {number} pos Timeline-Position
+ * @param {number} dt Sekunden seit dem letzten Bild
+ * @param {Set<string>} [skip]
+ * @returns {boolean} true, solange ein Clip in Echtzeit läuft und weitere Bilder braucht
  */
-export function applyClipTimes(stage, skip = new Set()) {
-  if (!stage.mixer) return;
-  let any = false;
-  for (const clip of stage.clips) {
-    const time = stage.params[clipProp(clip.name)];
-    if (time === undefined || skip.has(clip.name)) continue;
-    const action = stage.mixer.clipAction(clip);
-    action.play();
-    action.paused = true;
-    action.time = Math.min(1, Math.max(0, time)) * clip.duration;
-    any = true;
+export function updateClips(stage, project, pos, dt, skip = new Set()) {
+  const mixer = stage.mixer;
+  if (!mixer) return false;
+  const state = stage.clipState || (stage.clipState = { section: -1, modes: new Map() });
+  const count = project.sections.length;
+  const index = Math.min(count - 1, Math.max(0, Math.floor(pos)));
+  const local = Math.min(1, Math.max(0, pos - index));
+  const section = project.sections[index];
+
+  // Welche Clips verlangt der aktuelle Abschnitt?
+  const wanted = new Map();
+  // Einstellungen für einzelne Clips gehen vor "alle Animationen" ("*").
+  const entries = [...((section && section.clips) || [])].sort((a, b) => (a.clip === '*') - (b.clip === '*'));
+  for (const entry of entries) {
+    for (const clip of stage.clips) {
+      if ((entry.clip === '*' || entry.clip === clip.name) && !wanted.has(clip.name) && !skip.has(clip.name)) wanted.set(clip.name, entry.mode);
+    }
   }
-  if (any) stage.mixer.update(0);
+
+  let live = skip.size > 0;
+  let active = skip.size > 0;
+  for (const clip of stage.clips) {
+    if (skip.has(clip.name)) continue;
+    const action = mixer.clipAction(clip);
+    const mode = wanted.get(clip.name);
+    const before = state.modes.get(clip.name);
+
+    if (mode === 'loop' || mode === 'once') {
+      // Beim Erreichen des Abschnitts von vorn starten.
+      if (before !== mode || (mode === 'once' && state.section !== index)) {
+        action.reset();
+        action.setLoop(mode === 'once' ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+        action.clampWhenFinished = true;
+        action.play();
+      }
+      if (action.isRunning()) live = true;
+      state.modes.set(clip.name, mode);
+      active = true;
+      continue;
+    }
+
+    // Position aus dem Scrollen: durch den Abschnitt oder aus der Timeline
+    const time = mode === 'scroll' ? local : stage.params[clipProp(clip.name)];
+    if (time !== undefined) {
+      if (before === 'loop' || before === 'once') action.reset();
+      action.setLoop(THREE.LoopRepeat, Infinity);
+      action.play();
+      action.paused = true;
+      action.time = Math.min(1, Math.max(0, time)) * clip.duration;
+      state.modes.set(clip.name, 'scrub');
+      active = true;
+    } else if (before) {
+      // Der Clip gehört zu keinem Abschnitt mehr: zurück in die Ausgangsstellung.
+      action.stop();
+      state.modes.delete(clip.name);
+      active = true;
+    }
+  }
+  state.section = index;
+  if (active) mixer.update(dt);
+  return live;
 }

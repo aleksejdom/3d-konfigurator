@@ -4,13 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "npm run build:runtime && vite",
+    "build": "npm run build:runtime && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "verify:exports": "node scripts/verify-exports.mjs",
+    "verify:exports": "npm run build:runtime && node scripts/verify-exports.mjs",
     "tauri": "tauri",
-    "demo:data": "node scripts/demo-data-server.mjs"
+    "demo:data": "node scripts/demo-data-server.mjs",
+    "build:runtime": "vite build --config vite.runtime.config.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
@@ -18,6 +19,7 @@
     "@tauri-apps/plugin-fs": "^2.7.1",
     "fflate": "^0.8.3",
     "gsap": "^3.15.1",
+    "lucide-react": "^1.72.0",
     "qrcode-generator": "^2.0.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

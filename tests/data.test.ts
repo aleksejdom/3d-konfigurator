@@ -131,7 +131,7 @@ describe('HTML und Export', () => {
     expect(files['README.md']).toContain('## Datenquelle');
     expect(files['README.md']).toContain('`motor.temperature`');
     expect(files['README.md']).toContain('Zugangsdaten');
-    expect(Object.keys(JSON.parse(files['src/project.json']).data.source).sort()).toEqual(['interval', 'mode', 'staleAfter', 'url']);
+    expect(Object.keys(JSON.parse(files['project.js'].slice(files['project.js'].indexOf('{')).replace(/;\s*$/, '')).data.source).sort()).toEqual(['interval', 'mode', 'staleAfter', 'url']);
   });
 });
 
@@ -140,7 +140,7 @@ describe('Projektformat', () => {
     const old = { ...createProject(), formatVersion: 4 } as Record<string, unknown>;
     delete old.data;
     const project = migrateProject(old);
-    expect(project.formatVersion).toBe(6);
+    expect(project.formatVersion).toBe(7);
     expect(project.data.fields).toEqual([]);
     expect(project.data.source.mode).toBe('test');
   });

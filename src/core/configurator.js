@@ -5,7 +5,7 @@
 // durch eine Reset-Aktion oder beim Erreichen eines Abschnitts, der die Gruppe an die Timeline übergibt.
 
 import * as THREE from 'three';
-import { applyClipTimes } from './stage.js';
+import { updateClips } from './stage.js';
 import { approachWeights, dominant, isAvailable, optionProp, parseAction, resolveSelection, stepOption, toWeights } from './actions.js';
 
 // ---------- Szene ----------
@@ -245,6 +245,7 @@ export function createConfigurator({ stage, project, root, canvas, openHotspot, 
   let signature = null;
   let dirty = true;
   let fading = false;
+  let clipsLive = false;
 
   const groupById = (id) => groups.find((group) => group.id === id);
 
@@ -408,7 +409,7 @@ export function createConfigurator({ stage, project, root, canvas, openHotspot, 
   return {
     /** true, solange überblendet wird, ein Clip läuft oder sich etwas geändert hat */
     get live() {
-      return dirty || fading || playing.size > 0 || pointer.moved || [...driven.values()].some((scale) => scale !== 0);
+      return dirty || fading || clipsLive || pointer.moved;
     },
     selection,
     select,
@@ -466,9 +467,8 @@ export function createConfigurator({ stage, project, root, canvas, openHotspot, 
       shown = next;
       applyOptions(stage, project, shown, tints);
 
-      if (stage.mixer && (playing.size > 0 || driven.size > 0)) stage.mixer.update(dt);
-      // Clips, die an die Scroll-Timeline gebunden sind, folgen der Scrollposition.
-      applyClipTimes(stage, new Set([...playing, ...driven.keys()]));
+      // Animationsclips: frei laufende (Aktion, Messwert), die des Abschnitts und die der Timeline.
+      clipsLive = updateClips(stage, project, pos, dt, new Set([...playing, ...driven.keys()]));
 
       if (pointer.moved) {
         pointer.moved = false;

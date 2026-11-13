@@ -67,7 +67,10 @@ export async function startPlayer({
     : Promise.resolve();
 
   const sectionElements = document.querySelectorAll('[data-section]');
-  const updateComponents = bindComponents(document, project.sections.map((section) => section.id), { reduced });
+  const updateComponents = bindComponents(document, project.sections.map((section) => section.id), {
+    reduced,
+    pinned: project.settings.textMode !== 'flow',
+  });
   let breakpoint = 'desktop';
   const interaction = createInteraction({ stage, project, root: document, canvas, getBreakpoint: () => breakpoint, reduced });
   const configurator = createConfigurator({

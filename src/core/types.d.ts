@@ -1,4 +1,4 @@
-// Projektformat des 3D-Web-Editors (Version 6).
+// Projektformat des 3D-Web-Editors (Version 7).
 // Diese Typen beschreiben project.json. Editor, Vorschau und Export lesen dasselbe Format.
 
 export type Vec3 = [number, number, number];
@@ -306,6 +306,16 @@ export interface ProjectData {
   levelColors: Record<DataLevel, string>;
 }
 
+/**
+ * Wie ein Animationsclip in einem Abschnitt läuft:
+ * loop = in Schleife, solange der Abschnitt zu sehen ist; once = einmal beim Erreichen des Abschnitts;
+ * scroll = mit dem Scrollen durch den Abschnitt (vor und zurück).
+ */
+export interface SectionClip {
+  clip: string;
+  mode: 'loop' | 'once' | 'scroll';
+}
+
 export interface Section {
   id: string;
   name: string;
@@ -313,6 +323,11 @@ export interface Section {
   height: number;
   align: 'left' | 'center' | 'right';
   components: Component[];
+  /**
+   * Animationen des Modells (Clips aus Blender o. Ä.), die in diesem Abschnitt laufen.
+   * clip "*" = alle Clips des Modells.
+   */
+  clips?: SectionClip[];
 }
 
 export interface ModelStats {
@@ -354,7 +369,7 @@ export interface EnvironmentSettings {
 }
 
 export interface Project {
-  formatVersion: 6;
+  formatVersion: 7;
   name: string;
   /** resources: Begleitdateien eines .gltf (Puffer und Texturen), relativ zur Modelldatei */
   model: { file: string | null; stats: ModelStats | null; resources?: string[] };
@@ -375,6 +390,11 @@ export interface Project {
     background: string;
     /** 0 = Szene folgt der Scrollposition direkt. 0..1 = leichte Dämpfung. */
     scrollSmoothing: number;
+    /**
+     * pinned = Texte stehen fest an ihrem Platz, solange ihr Abschnitt aktiv ist, und gleiten beim Wechsel
+     * zum nächsten Abschnitt aus dem Bild. flow = Texte scrollen mit der Seite.
+     */
+    textMode: 'pinned' | 'flow';
     environment: EnvironmentSettings;
     /** Bild, das während des Ladens statt der 3D-Szene zu sehen ist (Dateiname) */
     poster: string | null;

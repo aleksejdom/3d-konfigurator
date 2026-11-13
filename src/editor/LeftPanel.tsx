@@ -1,3 +1,29 @@
+import { Block, Fold } from './Block';
+import {
+  Activity,
+  Box,
+  CreditCard,
+  Database,
+  GalleryHorizontal,
+  Gauge,
+  Heading,
+  Image as ImageIcon,
+  Info,
+  Layers as LayersIcon,
+  LayoutList,
+  ListTree,
+  type LucideIcon,
+  MapPin,
+  MousePointerClick,
+  PanelTop,
+  Shapes,
+  SlidersHorizontal,
+  SquareChevronDown,
+  Text,
+  Wifi,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { SHOW_ALL } from './Block';
 import { clipProp } from '../core/stage.js';
 import { currentState } from './stage';
 import { releaseClip, setClipTime } from './store';
@@ -67,10 +93,7 @@ function Sections() {
     });
 
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Abschnitte</h3>
-        <button
+    <Block id="sections" icon={LayoutList} title="Abschnitte" actions={<><button
           onClick={() => {
             const section = createSection(`Abschnitt ${project.sections.length + 1}`);
             update((p) => void p.sections.push(section));
@@ -78,8 +101,7 @@ function Sections() {
           }}
         >
           + Abschnitt
-        </button>
-      </header>
+        </button></>}>
       <ul className="list">
         {project.sections.map((section, i) => (
           <li key={section.id} className={section.id === selected ? 'selected' : ''}>
@@ -114,7 +136,7 @@ function Sections() {
           </li>
         ))}
       </ul>
-    </section>
+    </Block>
   );
 }
 
@@ -134,10 +156,7 @@ function SceneTree() {
   }, [modelVersion]);
 
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Szene</h3>
-      </header>
+    <Block id="tree" icon={ListTree} title="Szene" closed>
       <ul className="list tree">
         {nodes.slice(0, TREE_LIMIT).map((node) => (
           <li key={node.id} className={node.id === selected ? 'selected' : ''}>
@@ -157,7 +176,7 @@ function SceneTree() {
           {nodes.length - TREE_LIMIT} weitere Bauteile sind nicht aufgelistet. Sie lassen sich im Viewport anklicken.
         </p>
       )}
-    </section>
+    </Block>
   );
 }
 
@@ -188,11 +207,7 @@ function Model() {
   const warnings = stats && file ? budgetWarnings(stats, file, drawCalls, project.budgets) : [];
 
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Modell</h3>
-        <button onClick={importModel}>{file ? 'Austauschen' : 'Importieren'}</button>
-      </header>
+    <Block id="model" icon={Box} title="Modell" actions={<><button onClick={importModel}>{file ? 'Austauschen' : 'Importieren'}</button></>}>
       {!stats && <p className="hint">Noch kein Modell importiert.</p>}
       {stats && (
         <>
@@ -216,7 +231,7 @@ function Model() {
           </dl>
           {(stats.clips ?? []).length > 0 && (
             <div className="clips">
-              <h4>Animationsclips in der Timeline</h4>
+              <Fold id="clips-timeline" title="Animationsclips in der Timeline" closed>
               {(stats.clips ?? []).map((clip) => {
                 const time = state[clipProp(clip)] as number | undefined;
                 return (
@@ -239,6 +254,7 @@ function Model() {
                 );
               })}
               <p className="hint">Regler bewegen und „Merken“: Der Clip läuft dann mit dem Scrollen vor und zurück.</p>
+              </Fold>
             </div>
           )}
           {stats.textures.length > 0 && (
@@ -274,24 +290,24 @@ function Model() {
           )}
         </>
       )}
-    </section>
+    </Block>
   );
 }
 
 // ---------- Komponentenbibliothek ----------
 
-const LIBRARY: { type: Exclude<ComponentType, 'instance'>; hint: string }[] = [
-  { type: 'headline', hint: 'Überschrift' },
-  { type: 'text', hint: 'Absatz' },
-  { type: 'image', hint: 'PNG, JPG, SVG …' },
-  { type: 'button', hint: 'Link als Schaltfläche' },
-  { type: 'card', hint: 'Behälter für Elemente' },
-  { type: 'infobox', hint: 'Kompakter Hinweis' },
-  { type: 'select', hint: 'Variante aus einer Liste' },
-  { type: 'slider', hint: 'Wischen, Pfeile, Tastatur' },
-  { type: 'value', hint: 'Zahl mit Einheit' },
-  { type: 'status', hint: 'Zustand als Text' },
-  { type: 'connection', hint: 'Verbunden, veraltet, offline' },
+const LIBRARY: { type: Exclude<ComponentType, 'instance'>; hint: string; icon: LucideIcon }[] = [
+  { type: 'headline', hint: 'Überschrift', icon: Heading },
+  { type: 'text', hint: 'Absatz', icon: Text },
+  { type: 'image', hint: 'PNG, JPG, SVG …', icon: ImageIcon },
+  { type: 'button', hint: 'Link als Schaltfläche', icon: MousePointerClick },
+  { type: 'card', hint: 'Behälter für Elemente', icon: CreditCard },
+  { type: 'infobox', hint: 'Kompakter Hinweis', icon: Info },
+  { type: 'select', hint: 'Variante aus einer Liste', icon: SquareChevronDown },
+  { type: 'slider', hint: 'Wischen, Pfeile, Tastatur', icon: GalleryHorizontal },
+  { type: 'value', hint: 'Zahl mit Einheit', icon: Gauge },
+  { type: 'status', hint: 'Zustand als Text', icon: Activity },
+  { type: 'connection', hint: 'Verbunden, veraltet, offline', icon: Wifi },
 ];
 
 function Library() {
@@ -319,22 +335,19 @@ function Library() {
   });
 
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Komponenten</h3>
-      </header>
+    <Block id="library" icon={Shapes} title="Komponenten">
       <div className="library">
         {LIBRARY.map((item) => (
-          <button key={item.type} {...drag({ type: item.type })} onClick={() => add({ type: item.type })}>
+          <button key={item.type} {...drag({ type: item.type })} onClick={() => add({ type: item.type })} title={item.hint}>
+            <item.icon size={16} aria-hidden />
             <strong>{COMPONENT_LABELS[item.type]}</strong>
-            <small>{item.hint}</small>
           </button>
         ))}
       </div>
       <p className="hint">In den Viewport ziehen: auf eine Karte, in die Textspalte oder frei über das Modell.</p>
       {project.templates.length > 0 && (
         <>
-          <h4>Vorlagen</h4>
+          <Fold id="templates" title="Vorlagen">
           <ul className="list">
             {project.templates.map((template) => (
               <li key={template.id}>
@@ -347,9 +360,10 @@ function Library() {
               </li>
             ))}
           </ul>
+          </Fold>
         </>
       )}
-    </section>
+    </Block>
   );
 }
 
@@ -373,10 +387,7 @@ function Layers() {
   resolvedTree(project, section).forEach((node) => visit(node, 0));
 
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Ebenen · {section.name}</h3>
-      </header>
+    <Block id="layers" icon={LayersIcon} title={<>Ebenen · {section.name}</>}>
       {rows.length === 0 && <p className="hint">Dieser Abschnitt hat noch keine Komponenten.</p>}
       <ul className="list tree">
         {rows.map(({ node, depth }) => {
@@ -407,7 +418,7 @@ function Layers() {
         })}
       </ul>
       {rows.length > 1 && <p className="hint">Ziehen sortiert um. Auf eine Karte gezogen, wandert das Element hinein.</p>}
-    </section>
+    </Block>
   );
 }
 
@@ -418,17 +429,13 @@ function Hotspots() {
   const hasModel = useEditor((s) => s.project.model.file !== null);
 
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Hotspots</h3>
-        <button
+    <Block id="hotspots" icon={MapPin} title="Hotspots" actions={<><button
           className={placing ? 'active' : ''}
           disabled={!hasModel}
           onClick={() => useEditor.setState({ placingHotspot: !placing })}
         >
           {placing ? 'Abbrechen' : '+ Hotspot'}
-        </button>
-      </header>
+        </button></>}>
       {placing && <p className="hint">Klicke im Viewport auf die Stelle des Modells, an der der Hotspot sitzen soll.</p>}
       {!placing && hotspots.length === 0 && <p className="hint">Hotspots hängen an einem Bauteil und folgen seiner Bewegung.</p>}
       <ul className="list">
@@ -444,21 +451,91 @@ function Hotspots() {
           </li>
         ))}
       </ul>
-    </section>
+    </Block>
   );
 }
 
+type Tab = 'page' | 'elements' | 'model' | 'hotspots' | 'configurator' | 'data';
+
+const TABS: { id: Tab; label: string; icon: LucideIcon; hint: string }[] = [
+  { id: 'page', label: 'Seite', icon: PanelTop, hint: 'Abschnitte der Seite' },
+  { id: 'elements', label: 'Elemente', icon: Shapes, hint: 'Texte, Bilder, Karten und ihre Ebenen' },
+  { id: 'model', label: 'Modell', icon: Box, hint: '3D-Modell und seine Bauteile' },
+  { id: 'hotspots', label: 'Hotspots', icon: MapPin, hint: 'Klickbare Punkte am Modell' },
+  { id: 'configurator', label: 'Varianten', icon: SlidersHorizontal, hint: 'Konfigurator: Varianten und Materialien' },
+  { id: 'data', label: 'Daten', icon: Database, hint: 'Live-Daten und Testwerte' },
+];
+
+function storedTab(): Tab {
+  try {
+    const stored = localStorage.getItem('ui.tab') as Tab | null;
+    if (stored && TABS.some((t) => t.id === stored)) return stored;
+  } catch {
+    // Ohne Speicher beginnt die Leiste beim ersten Bereich.
+  }
+  return 'page';
+}
+
 export function LeftPanel() {
+  const [tab, setTabState] = useState<Tab>(storedTab);
+  const counts: Record<Tab, number> = {
+    page: 0,
+    elements: 0,
+    model: 0,
+    hotspots: useEditor((s) => s.project.hotspots.length),
+    configurator: useEditor((s) => s.project.variantGroups.length),
+    data: useEditor((s) => s.project.data.fields.length),
+  };
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    try {
+      localStorage.setItem('ui.tab', next);
+    } catch {
+      // Die Wahl gilt dann bis zum Schließen der App.
+    }
+  };
+
+  // Was im Viewport ausgewählt wird, zeigt die Leiste von selbst im passenden Bereich.
+  const selectedHotspot = useEditor((s) => s.selectedHotspot);
+  const selectedComponent = useEditor((s) => s.selectedComponent);
+  const selectedGroup = useEditor((s) => s.selectedGroup);
+  const selectedField = useEditor((s) => s.selectedField);
+  const placing = useEditor((s) => s.placingHotspot);
+  useEffect(() => void ((selectedHotspot || placing) && setTab('hotspots')), [selectedHotspot, placing]);
+  useEffect(() => void (selectedComponent && setTab('elements')), [selectedComponent]);
+  useEffect(() => void (selectedGroup && setTab('configurator')), [selectedGroup]);
+  useEffect(() => void (selectedField && setTab('data')), [selectedField]);
+
+  const show = (id: Tab) => SHOW_ALL || tab === id;
   return (
     <aside className="panel left">
-      <Sections />
-      <Library />
-      <Layers />
-      <Hotspots />
-      <ConfiguratorList />
-      <DataList />
-      <SceneTree />
-      <Model />
+      <nav className="rail" aria-label="Bereiche">
+        {TABS.map((t) => (
+          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)} title={t.hint} aria-pressed={tab === t.id}>
+            <t.icon size={18} aria-hidden />
+            <span>{t.label}</span>
+            {counts[t.id] > 0 && <em>{counts[t.id]}</em>}
+          </button>
+        ))}
+      </nav>
+      <div className="rail-content">
+        {show('page') && <Sections />}
+        {show('elements') && (
+          <>
+            <Library />
+            <Layers />
+          </>
+        )}
+        {show('hotspots') && <Hotspots />}
+        {show('configurator') && <ConfiguratorList />}
+        {show('data') && <DataList />}
+        {show('model') && (
+          <>
+            <Model />
+            <SceneTree />
+          </>
+        )}
+      </div>
     </aside>
   );
 }

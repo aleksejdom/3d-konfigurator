@@ -5,7 +5,7 @@ import { execSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildExport } from '../src/export/exporter.js';
+import { buildExport, buildOfflineAssets } from '../src/export/exporter.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const coreDir = join(root, 'src/core');
@@ -28,7 +28,7 @@ const section = (id, name, extra = []) => ({
 });
 
 const project = {
-  formatVersion: 6,
+  formatVersion: 7,
   name: 'Export-Test',
   model: { file: 'sample.glb', stats: null },
   base: {
@@ -195,6 +195,7 @@ const project = {
   settings: {
     background: '#14161a',
     scrollSmoothing: 0,
+    textMode: 'pinned',
     environment: { file: 'himmel.hdr', showBackground: true, rotation: 40, backgroundIntensity: 1, backgroundBlur: 0.3 },
     poster: 'poster.png',
     reducedMotion: 'respect',
@@ -223,6 +224,7 @@ function binary(kind, name) {
   if (kind === 'model' || kind === 'resource') return readFileSync(join(root, 'public', name));
   if (kind === 'env') return makeHdr();
   if (kind === 'draco') return readFileSync(join(root, 'public/draco', name));
+  if (kind === 'runtime') return readFileSync(join(root, 'public/runtime', name));
   return POSTER;
 }
 
@@ -230,15 +232,27 @@ for (const target of ['vanilla', 'astro']) {
   const out = join(root, '.verify', target);
   rmSync(out, { recursive: true, force: true });
   const { files, binaries } = buildExport(project, target, coreSources);
+  const offline = {};
+  for (const entry of binaries) {
+    const data = binary(entry.kind, entry.name);
+    files[entry.path] = data;
+    if (entry.offline) offline[entry.path] = new Uint8Array(data);
+  }
+  // Der HTML-Export bettet Modell und Umgebung zusätzlich ein, damit er per Doppelklick läuft.
+  if (target === 'vanilla') files['offline-assets.js'] = buildOfflineAssets(offline);
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(out, path)), { recursive: true });
     writeFileSync(join(out, path), content);
   }
-  for (const { path, kind, name } of binaries) {
-    mkdirSync(dirname(join(out, path)), { recursive: true });
-    writeFileSync(join(out, path), binary(kind, name));
+  if (target === 'vanilla') {
+    // Läuft ohne Installation. Geprüft wird zusätzlich, dass sich die Laufzeit aus dem Quellcode neu bauen lässt.
+    console.log('\n== vanilla: Laufzeit aus source/ neu bauen ==');
+    rmSync(join(out, 'runtime/player.js'));
+    execSync('npm install --no-audit --no-fund && npm run build', { cwd: join(out, 'source'), stdio: 'inherit' });
+    readFileSync(join(out, 'runtime/player.js'));
+  } else {
+    console.log('\n== astro: npm install && npm run build ==');
+    execSync('npm install --no-audit --no-fund && npm run build', { cwd: out, stdio: 'inherit' });
   }
-  console.log(`\n== ${target}: npm install && npm run build ==`);
-  execSync('npm install --no-audit --no-fund && npm run build', { cwd: out, stdio: 'inherit' });
 }
 console.log('\nBeide Exporte wurden gebaut.');

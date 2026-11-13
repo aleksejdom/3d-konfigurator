@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { resolveView } from '../src/core/interaction.js';
+import * as THREE from 'three';
+import { resolveView, viewInWorld } from '../src/core/interaction.js';
 import { evaluate, mix } from '../src/core/timeline.js';
 import type { Component, Hotspot } from '../src/core/types';
 import { renderFreeLayer, renderHotspotLayer, renderSections } from '../src/export/page.js';
@@ -99,7 +100,33 @@ describe('Hotspots', () => {
     delete v2.lookAts;
     delete v2.follows;
     const project = migrateProject(v2);
-    expect(project.formatVersion).toBe(6);
+    expect(project.formatVersion).toBe(7);
     expect([project.hotspots, project.lookAts, project.follows]).toEqual([[], [], []]);
+  });
+});
+
+describe('Automatische Detailansicht', () => {
+  const node = new THREE.Object3D();
+  node.updateMatrixWorld();
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 0, 10);
+  const stage = { nodes: new Map([['n', node]]), camera, bounds: { radius: 2 } } as never;
+  const hotspot = { id: 'h', nodeId: 'n', position: [1, 0, 0], normal: [1, 0, 0], label: '', views: {} } as unknown as Hotspot;
+
+  it('fährt auch ohne gespeicherte Ansicht vor den Hotspot', () => {
+    const view = viewInWorld(stage, hotspot, 'desktop')!;
+    expect(view.target.toArray()).toEqual([1, 0, 0]);
+    const distance = view.position.distanceTo(view.target);
+    // näher als vorher, aber nicht im Bauteil
+    expect(distance).toBeLessThan(camera.position.distanceTo(view.target));
+    expect(distance).toBeGreaterThanOrEqual(2 * 0.35);
+    // überwiegend von der Außenseite der Fläche
+    expect(view.position.x).toBeGreaterThan(1);
+  });
+
+  it('nimmt die gespeicherte Ansicht, wenn es eine gibt', () => {
+    const saved = { ...hotspot, views: { desktop: { position: [0, 5, 0], target: [0, 1, 0] } } } as unknown as Hotspot;
+    const view = viewInWorld(stage, saved, 'desktop')!;
+    expect(view.position.toArray()).toEqual([0, 5, 0]);
   });
 });

@@ -135,7 +135,7 @@ describe('Projektformat', () => {
     delete old.variantGroups;
     delete old.meshActions;
     const project = migrateProject(old);
-    expect(project.formatVersion).toBe(6);
+    expect(project.formatVersion).toBe(7);
     expect(project.variantGroups).toEqual([]);
     expect(project.meshActions).toEqual([]);
   });

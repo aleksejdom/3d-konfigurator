@@ -1,6 +1,6 @@
 import type { Budget, Component, ComponentAnimation, ComponentType, Project, Section, ProjectData } from '../core/types';
 
-export const FORMAT_VERSION = 6;
+export const FORMAT_VERSION = 7;
 
 export const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -80,7 +80,7 @@ export function createProject(): Project {
     data: createData(),
     framing: { desktop: {}, tablet: {}, mobile: {} },
     budgets: structuredClone(DEFAULT_BUDGETS),
-    settings: { background: '#14161a', scrollSmoothing: 0, environment: { file: null, showBackground: false, rotation: 0, backgroundIntensity: 1, backgroundBlur: 0 }, poster: null, reducedMotion: 'respect' },
+    settings: { background: '#14161a', scrollSmoothing: 0, textMode: 'pinned', environment: { file: null, showBackground: false, rotation: 0, backgroundIntensity: 1, backgroundBlur: 0 }, poster: null, reducedMotion: 'respect' },
   };
 }
 

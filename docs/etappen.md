@@ -83,9 +83,19 @@ Schließt Abnahmekriterium 1 ab.
 - Vorschau-Link und QR-Code fürs lokale WLAN (nur in der installierten Desktop-App): Die App liefert die Vorschau über einen eigenen kleinen Webserver aus. Das Smartphone meldet die Zeit bis zum ersten sichtbaren Render zurück; sie wird als Messung auf echtem Gerät gekennzeichnet
 - Projektformat Version 6
 
+## Nachbesserung nach erstem Praxistest (erledigt, Stand 13.11.2026)
+
+- HTML/CSS/JavaScript-Export läuft ohne Installation: `index.html` per Doppelklick öffnen oder den Ordner auf einen Webserver legen. Die Seite lädt ein fertig gebautes Skript (`runtime/player.js`, Three.js und GSAP inklusive) statt ES-Modulen, die Browser bei `file://` blockieren (CORS). Modell und Umgebung liegen für den Doppelklick zusätzlich in `offline-assets.js`. Der lesbare Quellcode liegt in `source/` und baut mit `npm install && npm run build` das Skript neu. Der Astro-Export braucht weiterhin `npm run dev` oder einen Webserver
+- Hotspots: Die Kamera fährt immer vor den Hotspot. Ohne gespeicherte Ansicht berechnet der Player eine Ansicht von der Außenseite der angeklickten Fläche
+- Texte stehen fest im Bild (Standard): Beim Wechsel des Abschnitts gleitet der Text nach oben hinaus, der nächste von unten herein. In den Seiteneinstellungen auf „Texte scrollen mit der Seite“ umstellbar
+- Animationen aus Blender je Abschnitt: pro Clip oder für alle „In Schleife“, „Einmal“ oder „Mit dem Scrollen“. Sie laufen auch im Editor-Viewport
+- Editor neu gegliedert: Symbolleiste links mit den Bereichen Seite, Elemente, Modell, Hotspots, Varianten, Daten; klappbare Bereiche mit Symbolen; selten gebrauchte Gruppen (Licht, Seiteneinstellungen, Kameraausschnitt, Animation, Vorlage, Datenquelle …) sind zunächst zugeklappt; die App merkt sich den Zustand
+- Projektformat Version 7
+
 ## Bekannte Grenzen
 
 - Texturen im Format KTX2/Basis werden nicht geladen
 - Bauteile mit Klick-Aktion sind nur per Maus oder Tap erreichbar; für die Tastatur braucht es zusätzlich einen Button mit derselben Aktion
 - Der Vorschau-Link fürs WLAN funktioniert nur in der gebauten Desktop-App, nicht mit `npm run dev` oder `npm run tauri dev`
 - Animationsclips, die per Aktion oder Messwert laufen, spielen in Vorschau und Export, nicht im Editor-Viewport
+- Der HTML-Export per Doppelklick lädt Modell und Umgebung aus `offline-assets.js` (rund ein Drittel größer als die Originaldateien); Live-Daten brauchen weiterhin einen Webserver

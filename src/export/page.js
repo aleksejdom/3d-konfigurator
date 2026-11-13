@@ -221,7 +221,7 @@ function renderNode(node, context, indent, depth) {
  * @param {string} [options.indent]
  * @param {(name: string) => string} [options.assetUrl] Adresse eines Bildes
  * @param {boolean} [options.editor] IDs für die Auswahl im Editor mitgeben
- * @param {number} [options.only] nur diesen Abschnitt ausgeben (Editor-Viewport)
+ * @param {number | number[]} [options.only] nur diese Abschnitte ausgeben (Editor-Viewport)
  */
 function makeContext(options) {
   return {
@@ -233,13 +233,13 @@ function makeContext(options) {
   };
 }
 
-const included = (options, index) => options.only === undefined || options.only === index;
+const included = (options, index) => options.only === undefined || [].concat(options.only).includes(index);
 
 /** Die Abschnitte mit ihren Komponenten im Seitenlayout, als echte HTML-Elemente. */
 export function renderSections(project, options = {}) {
   const context = makeContext(options);
   const { indent } = context;
-  if (options.only > 0) context.headlineSeen = true;
+  if (options.only !== undefined && Math.min(...[].concat(options.only)) > 0) context.headlineSeen = true;
   return project.sections
     .map((section, index) => {
       if (!included(options, index)) return null;
@@ -364,6 +364,45 @@ function ruleBlock(rules, indent) {
     .join('\n\n');
 }
 
+/**
+ * Feste Texte (settings.textMode "pinned"): Die Abschnitte geben nur die Scrollstrecke vor. Ihre Textspalte
+ * steht fest im Bild. Das Skript setzt --text-opacity und --text-shift: Der Text ist sichtbar, solange sein
+ * Abschnitt aktiv ist, und gleitet beim Wechsel zum nächsten Abschnitt aus dem Bild.
+ */
+const PINNED_CSS = `
+/* Feste Texte: Die Textspalte steht im Bild, der Abschnitt ist nur Scrollstrecke. */
+.section {
+  padding: 0;
+}
+
+.section-inner {
+  position: fixed;
+  inset: 0;
+  justify-content: center;
+  max-width: none;
+  padding: 12vh 6cqi;
+  pointer-events: none;
+  opacity: var(--text-opacity, 0);
+  transform: translateY(var(--text-shift, 0px));
+  visibility: hidden;
+}
+
+/* Vor dem Start des Skripts ist der Text des ersten Abschnitts zu sehen. */
+.section:first-child .section-inner {
+  --text-opacity: 1;
+  visibility: visible;
+}
+
+.section-inner > * {
+  max-width: min(30rem, 100%);
+  pointer-events: auto;
+}
+
+.section.align-right .section-inner {
+  align-items: flex-end;
+}
+`;
+
 export function renderCss(project) {
   const background = project.settings.background;
   const dark = isDark(background);
@@ -377,6 +416,7 @@ export function renderCss(project) {
     sections.push(`/* Mobile */\n@container (max-width: ${BREAKPOINT_WIDTHS.mobile}px) {\n${ruleBlock(rules.mobile, '  ')}\n}`);
   }
 
+  const pinned = project.settings.textMode !== 'flow';
   const levels = (project.data && project.data.levelColors) || { ok: '#3ecf8e', warn: '#f5a623', alarm: '#e5484d', off: '#8b9099' };
 
   return `.site {
@@ -466,7 +506,7 @@ export function renderCss(project) {
   align-items: center;
   text-align: center;
 }
-
+${pinned ? PINNED_CSS : ''}
 /* Frei platzierte Komponenten liegen fest über dem 3D-Canvas. */
 .free-layer {
   position: fixed;

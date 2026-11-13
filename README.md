@@ -50,8 +50,9 @@ npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
 5. Punkte in der Timeline anklicken, verschieben und rechts bearbeiten (Geltungsbereich, Easing, Übergangslänge).
 6. Aus der Komponentenbibliothek Headlines, Texte, Bilder, Buttons, Karten und Infoboxen in den Viewport ziehen.
    Über „Desktop / Tablet / Mobile“ am Viewport passt du Gestaltung und Kameraausschnitt pro Breakpoint an.
-7. „Hotspot setzen“ und ein Bauteil anklicken; rechts „Kameraansicht merken“. Einem Button die Aktion
-   „Kamera zu Hotspot fahren“ geben. Für ein ausgewähltes Bauteil „+ Look At“ oder „+ Follow“ anlegen.
+7. „Hotspot setzen“ und ein Bauteil anklicken. Die Kamera fährt beim Klick von selbst vor den Hotspot; mit
+   „Kameraansicht merken“ legst du eine eigene Ansicht fest. Einem Button die Aktion „Kamera zu Hotspot fahren“
+   geben. Für ein ausgewähltes Bauteil „+ Look At“ oder „+ Follow“ anlegen.
 8. Für den Konfigurator ein Bauteil auswählen und links „+ Variante“ oder „+ Material“ anlegen. Den Besuchern
    gibst du einen Varianten-Slider, eine Auswahlliste oder Buttons mit der passenden Aktion.
 9. Für einen Digitalen Zwilling links unter „Daten“ Datenfelder anlegen, Testwerte setzen und Bauteile, Karten,
@@ -60,7 +61,16 @@ npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
 11. **Vorschau** zeigt die echte Seite in Desktop-, Tablet- und Mobile-Breite, misst die Zeit bis zum ersten sichtbaren
     Render, schaltet zwischen Testdaten und Live-Quelle um und zeigt die Seite mit reduzierter Bewegung.
     „Smartphone“ erzeugt in der Desktop-App einen Link mit QR-Code fürs lokale WLAN.
-12. **Exportieren** schreibt ein Astro- oder ein HTML/CSS/JavaScript-Projekt in einen Ordner.
+12. **Exportieren** schreibt ein Astro- oder ein HTML/CSS/JavaScript-Projekt in einen Ordner. Der HTML-Export läuft
+    ohne Installation: `index.html` doppelklicken oder den Ordner hochladen. Der Astro-Export braucht `npm install`
+    und `npm run dev`.
+
+Links wählst du über die Symbolleiste den Bereich (Seite, Elemente, Modell, Hotspots, Varianten, Daten). Bereiche
+lassen sich über ihren Titel auf- und zuklappen; die App merkt sich das.
+
+Texte stehen fest im Bild und wechseln an der Abschnittsgrenze. Unter „Seite“ rechts lässt sich das auf mitscrollende
+Texte umstellen. Animationen aus Blender stellst du rechts unter „Abschnitt“ ein: in Schleife, einmal oder mit dem
+Scrollen.
 
 ## Live-Daten ausprobieren
 

@@ -1,3 +1,5 @@
+import { Block, Fold } from './Block';
+import { Database } from 'lucide-react';
 import { useMemo } from 'react';
 import { resolveFields, testData } from '../core/data.js';
 import type { DataBinding, DataField, DataLevel, DataSource } from '../core/types';
@@ -122,11 +124,7 @@ export function FieldInspector({ id }: { id: string }) {
   const hasClips = (project.model.stats?.clips ?? []).length > 0;
 
   return (
-    <section className="panel-block highlight">
-      <header>
-        <h3>Datenfeld · {TYPE_LABELS[field.type]}</h3>
-        <button onClick={() => removeField(id)}>Löschen</button>
-      </header>
+    <Block id="field" icon={Database} title={<>Datenfeld · {TYPE_LABELS[field.type]}</>} highlight actions={<><button onClick={() => removeField(id)}>Löschen</button></>}>
       <Field label="Name">
         <input value={field.label} onChange={(e) => set((f) => void (f.label = e.target.value), 'df-label')} />
       </Field>
@@ -144,7 +142,7 @@ export function FieldInspector({ id }: { id: string }) {
               <NumberInput value={field.decimals ?? 0} step={1} min={0} max={6} onChange={(n) => set((f) => void (f.decimals = Math.round(n)), 'df-dec')} />
             </Field>
           </div>
-          <h4>Grenzwerte</h4>
+          <Fold id="limits" title="Grenzwerte">
           <div className="pair">
             {LIMITS.map((limit) => (
               <Field key={limit.key} label={limit.label}>
@@ -157,12 +155,13 @@ export function FieldInspector({ id }: { id: string }) {
               </Field>
             ))}
           </div>
+          </Fold>
         </>
       )}
 
       {(field.type === 'status' || field.type === 'boolean') && (
         <>
-          <h4>Zustände</h4>
+          <Fold id="states" title="Zustände">
           {(field.states ?? []).map((state, i) => (
             <div className="state-row" key={i}>
               <input
@@ -192,16 +191,18 @@ export function FieldInspector({ id }: { id: string }) {
             </div>
           )}
           <p className="hint">Spalten: Wert in den Daten, Anzeigetext, Stufe.</p>
+          </Fold>
         </>
       )}
 
-      <h4>Testdaten</h4>
+      <Fold id="test" title="Testdaten">
       <Field label="Testwert">
         <TestValueInput field={field} onChange={(value) => set((f) => void (f.test = value), 'df-test')} />
       </Field>
       <p className="hint">Viewport und Vorschau reagieren sofort auf den Testwert.</p>
 
-      <h4>Reaktionen am Modell</h4>
+      </Fold>
+      <Fold id="bindings" title="Reaktionen am Modell">
       {bindings.map((binding) => (
         <BindingBlock key={binding.id} binding={binding} />
       ))}
@@ -213,7 +214,8 @@ export function FieldInspector({ id }: { id: string }) {
       <p className="hint">
         Messwert, Statusanzeige, Karten, Infoboxen und Hotspots bindest du in deren Eigenschaften über „Datenfeld“ an dieses Feld.
       </p>
-    </section>
+      </Fold>
+    </Block>
   );
 }
 
@@ -225,10 +227,7 @@ export function DataList() {
   const resolved = useMemo(() => resolveFields(project, testData(project)), [project]);
 
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Daten</h3>
-        <select
+    <Block id="data" icon={Database} title="Daten" actions={<><select
           className="add-select"
           aria-label="Datenfeld hinzufügen"
           value=""
@@ -240,8 +239,7 @@ export function DataList() {
               {TYPE_LABELS[type]}
             </option>
           ))}
-        </select>
-      </header>
+        </select></>}>
       {fields.length === 0 && <p className="hint">Datenfelder verbinden Messwerte und Zustände einer Maschine mit Modell und Oberfläche.</p>}
       <ul className="list">
         {fields.map((field) => {
@@ -265,7 +263,7 @@ export function DataList() {
 
       {fields.length > 0 && (
         <>
-          <h4>Datenquelle der veröffentlichten Seite</h4>
+          <Fold id="source" title="Datenquelle der veröffentlichten Seite" closed>
           <Field label="Art">
             <select value={source.mode} onChange={(e) => setSource({ mode: e.target.value as DataSource['mode'] })}>
               {(Object.keys(MODE_LABELS) as DataSource['mode'][]).map((mode) => (
@@ -300,8 +298,9 @@ export function DataList() {
               </p>
             </>
           )}
+          </Fold>
         </>
       )}
-    </section>
+    </Block>
   );
 }

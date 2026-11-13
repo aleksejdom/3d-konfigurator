@@ -1,3 +1,5 @@
+import { Block, Fold } from './Block';
+import { SquareMousePointer } from 'lucide-react';
 import { setComponentField } from './data';
 import { ActionSelect } from './ConfiguratorPanels';
 import { setComponentGroup } from './configurator';
@@ -91,13 +93,7 @@ export function ComponentInspector({ id }: { id: string }) {
   };
 
   return (
-    <section className="panel-block highlight">
-      <header>
-        <h3>
-          {COMPONENT_LABELS[type]}
-          {isInstance && ' · Instanz'}
-        </h3>
-        <span className="row tight">
+    <Block id="component" icon={SquareMousePointer} title={<>{COMPONENT_LABELS[type]} {isInstance && ' · Instanz'}</>} highlight actions={<><span className="row tight">
           <button onClick={() => shiftComponent(id, -1)} disabled={located.index === 0} aria-label="Nach oben" title="Nach oben">
             ↑
           </button>
@@ -112,8 +108,7 @@ export function ComponentInspector({ id }: { id: string }) {
           <button onClick={() => removeComponent(id)} aria-label="Komponente löschen" title="Löschen (Entf)">
             ×
           </button>
-        </span>
-      </header>
+        </span></>}>
 
       {inTemplate && template && (
         <p className="template-note">
@@ -240,7 +235,7 @@ export function ComponentInspector({ id }: { id: string }) {
         </Field>
       )}
 
-      <h4>Gestaltung · {BREAKPOINT_LABELS[breakpoint]}</h4>
+      <Fold id="style" title={<>Gestaltung · {BREAKPOINT_LABELS[breakpoint]}</>}>
       {free && number('x', 'Position von links (%)')}
       {free && number('y', 'Position von oben (%)')}
       {style('visible', 'Sichtbar', (value, _own, set) => (
@@ -263,7 +258,8 @@ export function ComponentInspector({ id }: { id: string }) {
           </select>
         ))}
 
-      <h4>Animation beim Scrollen</h4>
+      </Fold>
+      <Fold id="anim" title="Animation beim Scrollen" closed>
       <Field label="Art">
         <select
           value={animation.type}
@@ -293,10 +289,11 @@ export function ComponentInspector({ id }: { id: string }) {
           <p className="hint">Die Animation folgt der Scrollposition und läuft beim Zurückscrollen rückwärts.</p>
         </>
       )}
+      </Fold>
 
       {container && !inTemplate && (
         <>
-          <h4>Vorlage</h4>
+          <Fold id="template" title="Vorlage" closed>
           <form
             className="row"
             onSubmit={(e) => {
@@ -309,14 +306,16 @@ export function ComponentInspector({ id }: { id: string }) {
             <button>Als Vorlage speichern</button>
           </form>
           <p className="hint">Die Vorlage erscheint in der Bibliothek. Diese Karte wird ihre erste Instanz.</p>
+          </Fold>
         </>
       )}
       {isInstance && (
         <>
-          <h4>Vorlage</h4>
+          <Fold id="template" title="Vorlage" closed>
           <button onClick={() => detachInstance(id)}>Von Vorlage lösen</button>
+          </Fold>
         </>
       )}
-    </section>
+    </Block>
   );
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { splitPos } from '../core/timeline.js';
 import { clipProp, defaultBase, readProp, renderStage } from '../core/stage.js';
-import { buildExport } from '../export/exporter.js';
+import { buildExport, buildOfflineAssets } from '../export/exporter.js';
 import { usedImages } from '../export/page.js';
 import type { Breakpoint, Keyframe, Project, Scope, Value } from '../core/types';
 import { createProject, migrateProject, uid } from './project';
@@ -512,14 +512,21 @@ export async function exportProject(target: 'vanilla' | 'astro') {
   const { project, modelBuffer, assets } = get();
   const { files, binaries } = buildExport(project, target, coreSources);
   const all: FileMap = { ...files };
-  for (const { path, kind, name } of binaries) {
+  /** Dateien, die der HTML-Export zusätzlich einbettet, damit er per Doppelklick läuft */
+  const offline: Record<string, Uint8Array> = {};
+  for (const entry of binaries) {
+    const { path, kind, name } = entry;
     let data: ArrayBuffer | undefined;
     if (kind === 'model') data = modelBuffer ?? undefined;
     else if (kind === 'resource') data = get().modelResources[name];
     else if (kind === 'draco') data = await (await fetch('./draco/' + name)).arrayBuffer();
+    else if (kind === 'runtime') data = await (await fetch('./runtime/' + name)).arrayBuffer();
     else data = assets[name]?.data;
-    if (data) all[path] = new Uint8Array(data);
+    if (!data) continue;
+    all[path] = new Uint8Array(data);
+    if (entry.offline) offline[path] = new Uint8Array(data);
   }
+  if (target === 'vanilla') all['offline-assets.js'] = buildOfflineAssets(offline);
 
   if (!canPickDirectory) {
     downloadZip(`${project.name}-${target}`, all);
@@ -529,7 +536,7 @@ export async function exportProject(target: 'vanilla' | 'astro') {
   if (!dir) return;
   try {
     await writeFiles(dir, all);
-    notify(`Export geschrieben nach ${dirLabel(dir)}. Start: npm install, dann npm run dev.`);
+    notify(`Export geschrieben nach ${dirLabel(dir)}. ${target === 'vanilla' ? 'Zum Ansehen index.html öffnen.' : 'Start: npm install, dann npm run dev.'}`);
   } catch (error) {
     notify('Export fehlgeschlagen: ' + (error as Error).message);
   }

@@ -1,3 +1,5 @@
+import { Block, Fold } from './Block';
+import { MapPin } from 'lucide-react';
 import { useMemo } from 'react';
 import { EASINGS } from '../core/easing.js';
 import { resolveView } from '../core/interaction.js';
@@ -60,14 +62,10 @@ export function HotspotInspector({ id }: { id: string }) {
   const distance = view
     ? Math.hypot(view.position[0] - view.target[0], view.position[1] - view.target[1], view.position[2] - view.target[2])
     : 0;
-  const status = !view ? 'noch keine' : own ? (breakpoint === 'desktop' ? 'gemerkt' : 'eigene Ansicht') : `geerbt von ${BREAKPOINT_LABELS[source!]}`;
+  const status = !view ? 'automatisch (Kamera fährt von selbst vor den Hotspot)' : own ? (breakpoint === 'desktop' ? 'gemerkt' : 'eigene Ansicht') : `geerbt von ${BREAKPOINT_LABELS[source!]}`;
 
   return (
-    <section className="panel-block highlight">
-      <header>
-        <h3>Hotspot</h3>
-        <button onClick={() => removeHotspot(id)}>Löschen</button>
-      </header>
+    <Block id="hotspot" icon={MapPin} title="Hotspot" highlight actions={<><button onClick={() => removeHotspot(id)}>Löschen</button></>}>
       <Field label="Name">
         <input value={hotspot.name} onChange={(e) => updateHotspot(id, { name: e.target.value }, 'hs-name-' + id)} />
       </Field>
@@ -97,13 +95,13 @@ export function HotspotInspector({ id }: { id: string }) {
         </Field>
       )}
 
-      <h4>Detailansicht · {BREAKPOINT_LABELS[breakpoint]}</h4>
+      <Fold id="detail" title={<>Detailansicht · {BREAKPOINT_LABELS[breakpoint]}</>}>
       <p className="hint view-status">Kameraansicht: {status}</p>
       <div className="row wrap">
         <button className="primary" onClick={() => saveHotspotView(id, breakpoint)}>
           Kameraansicht merken
         </button>
-        <button disabled={!view} onClick={() => showHotspotView(id, breakpoint)}>
+        <button onClick={() => showHotspotView(id, breakpoint)}>
           Ansicht zeigen
         </button>
         {own && (
@@ -113,14 +111,16 @@ export function HotspotInspector({ id }: { id: string }) {
         )}
       </div>
       <p className="hint">
-        Kamera im Viewport auf das Detail richten, dann „Kameraansicht merken“. Die Ansicht ist am Bauteil verankert und
-        ändert die Timeline nicht.
+        Ein Klick auf den Hotspot fährt die Kamera immer dorthin. Für einen eigenen Bildausschnitt die Kamera im Viewport
+        auf das Detail richten und „Kameraansicht merken“. Die Ansicht ist am Bauteil verankert und ändert die Timeline nicht.
       </p>
       {view && (
+        <Field label="Abstand zum Blickziel">
+          <NumberInput value={distance} step={0.1} min={0.001} onChange={(n) => setViewDistance(id, breakpoint, n)} />
+        </Field>
+      )}
+      {(
         <>
-          <Field label="Abstand zum Blickziel">
-            <NumberInput value={distance} step={0.1} min={0.001} onChange={(n) => setViewDistance(id, breakpoint, n)} />
-          </Field>
           <Field label="Dauer der Kamerafahrt (s)">
             <NumberInput value={hotspot.duration} step={0.1} min={0} max={10} onChange={(n) => updateHotspot(id, { duration: n }, 'hs-duration-' + id)} />
           </Field>
@@ -141,7 +141,8 @@ export function HotspotInspector({ id }: { id: string }) {
           </Field>
         </>
       )}
-    </section>
+      </Fold>
+    </Block>
   );
 }
 

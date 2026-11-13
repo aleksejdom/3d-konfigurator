@@ -32,7 +32,7 @@ body,
 .app {
   display: grid;
   height: 100%;
-  grid-template: 44px minmax(0, 1fr) 128px / 264px minmax(0, 1fr) 300px;
+  grid-template: 44px minmax(0, 1fr) 128px / 316px minmax(0, 1fr) 312px;
   grid-template-areas: 'top top top' 'left view right' 'time time time';
 }
 
@@ -1115,4 +1115,217 @@ button.merken {
 .check.inline {
   margin: 0;
   white-space: nowrap;
+}
+
+.clip-mode {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.clip-mode span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Gliederung: Symbolleiste, klappbare Bereiche, Symbole ---------- */
+
+button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+
+button svg {
+  flex: none;
+}
+
+.bar-sep,
+.tool-sep {
+  align-self: center;
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+}
+
+.tool-sep {
+  margin: 0 4px;
+}
+
+.viewport-tools {
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.viewport-tools button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.viewport-tools button.active {
+  border-color: var(--accent);
+  background: var(--raised);
+}
+
+.panel.left {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 4px;
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+  overflow-y: auto;
+}
+
+.rail button {
+  position: relative;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 2px 6px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.rail button:hover {
+  color: var(--text);
+}
+
+.rail button.active {
+  border-color: transparent;
+  background: var(--raised);
+  color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.rail em {
+  position: absolute;
+  top: 3px;
+  right: 6px;
+  min-width: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--line);
+  color: var(--text);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 15px;
+}
+
+.rail-content {
+  overflow-y: auto;
+}
+
+.panel-block {
+  padding: 0;
+}
+
+.panel-block > header {
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px 6px 6px;
+}
+
+.block-toggle,
+.fold-toggle {
+  flex: 1;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 4px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+}
+
+.block-toggle:hover,
+.fold-toggle:hover {
+  color: var(--text);
+}
+
+.block-toggle h3,
+.fold-toggle h4 {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-overflow: ellipsis;
+}
+
+.block-toggle h3 {
+  color: var(--text);
+}
+
+.chevron {
+  transition: transform 0.15s;
+  transform: rotate(90deg);
+}
+
+.closed > header .chevron,
+.fold.closed > .fold-toggle .chevron {
+  transform: rotate(0deg);
+}
+
+.block-body {
+  padding: 2px 12px 12px;
+}
+
+.panel-block.highlight > header {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.panel-block.highlight .block-toggle svg:not(.chevron) {
+  color: var(--accent);
+}
+
+.fold {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.fold-toggle {
+  width: 100%;
+  margin: 4px 0 2px -4px;
+}
+
+.fold-body {
+  padding-bottom: 4px;
+}
+
+.library button {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 8px 9px;
+}
+
+.library button svg {
+  color: var(--accent);
+}
+
+.library button strong {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
 }

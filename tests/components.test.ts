@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { animationProgress, breakpointFor, cascade, resolveFraming } from '../src/core/components.js';
+import { TEXT_EDGE, animationProgress, breakpointFor, cascade, resolveFraming, textPresence } from '../src/core/components.js';
 import { renderCss, renderFreeLayer, renderSections, resolveComponent } from '../src/export/page.js';
 import { createComponent, createProject, migrateProject } from '../src/editor/project';
 import type { Component, Project } from '../src/core/types';
@@ -124,7 +124,7 @@ describe('Projektformat', () => {
       settings: { background: '#000000', scrollSmoothing: 0 },
     };
     const project = migrateProject(v1);
-    expect(project.formatVersion).toBe(6);
+    expect(project.formatVersion).toBe(7);
     expect(project.templates).toEqual([]);
     expect([project.hotspots, project.lookAts, project.follows]).toEqual([[], [], []]);
     expect(project.sections[0].components.map((c) => [c.id, c.type, c.text, c.href])).toEqual([
@@ -142,5 +142,39 @@ describe('Projektformat', () => {
     const html = renderSections(project);
     expect(html).toContain('style="--n: 3"');
     expect(html).toContain('<span class="w" style="--i: 2">drei</span>');
+  });
+});
+
+describe('Feste Texte', () => {
+  it('steht im Abschnitt still und wechselt an der Abschnittsgrenze', () => {
+    expect(textPresence(0.3, false, false)).toEqual({ opacity: 1, shift: 0 });
+    // Ende des Abschnitts: hinaus nach oben
+    const leaving = textPresence(1 - TEXT_EDGE * 1.5, false, false);
+    expect(leaving.opacity).toBeGreaterThan(0);
+    expect(leaving.opacity).toBeLessThan(1);
+    expect(leaving.shift).toBeLessThan(0);
+    expect(textPresence(1 - TEXT_EDGE, false, false).opacity).toBe(0);
+    // Der nächste Text kommt erst danach von unten herein.
+    const entering = textPresence(-TEXT_EDGE / 2, false, false);
+    expect(entering.opacity).toBeGreaterThan(0);
+    expect(entering.opacity).toBeLessThan(1);
+    expect(entering.shift).toBeGreaterThan(0);
+    expect(textPresence(-TEXT_EDGE, false, false).opacity).toBe(0);
+  });
+
+  it('bleibt am Seitenanfang und am Seitenende stehen', () => {
+    expect(textPresence(-0.1, true, false).opacity).toBe(1);
+    expect(textPresence(0.99, false, true).opacity).toBe(1);
+  });
+
+  it('ist für neue und ältere Projekte eingeschaltet', () => {
+    expect(createProject().settings.textMode).toBe('pinned');
+    const old = { ...createProject(), formatVersion: 6 } as Record<string, any>;
+    delete old.settings.textMode;
+    expect(migrateProject(old).settings.textMode).toBe('pinned');
+    expect(renderCss(createProject())).toContain('Feste Texte');
+    const flow = createProject();
+    flow.settings.textMode = 'flow';
+    expect(renderCss(flow)).not.toContain('Feste Texte');
   });
 });

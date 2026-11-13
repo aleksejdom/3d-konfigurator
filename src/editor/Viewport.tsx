@@ -1,12 +1,13 @@
 import { levelTints, resolveFields, syncDataElements, testData } from '../core/data.js';
 import { dominant, optionProp } from '../core/actions.js';
 import { applyOptions, syncOptionElements, timelineWeights } from '../core/configurator.js';
+import { Box, MapPin, Monitor, Move3d, Rotate3d, Scaling, Smartphone, Tablet } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { bindComponents, resolveFraming } from '../core/components.js';
-import { applyClipTimes, applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, readProp, renderStage, resizeStage } from '../core/stage.js';
+import { applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, readProp, renderStage, resizeStage, updateClips } from '../core/stage.js';
 import { splitPos } from '../core/timeline.js';
 import type { Breakpoint, Scope, Value } from '../core/types';
 import { positionHotspots } from '../core/interaction.js';
@@ -23,6 +24,8 @@ const MODE_LABEL: Record<GizmoMode, string> = { translate: 'Verschieben', rotate
 
 /** Breite, in der die Seite für einen Breakpoint dargestellt wird. Desktop: mindestens 1280 px. */
 const DEVICE_WIDTH: Record<Breakpoint, number> = { desktop: 1280, tablet: 820, mobile: 390 };
+const MODE_ICON = { translate: Move3d, rotate: Rotate3d, scale: Scaling };
+const DEVICE_ICON = { desktop: Monitor, tablet: Tablet, mobile: Smartphone };
 const DEVICE_LABEL: Record<Breakpoint, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' };
 
 export const DRAG_TYPE = 'application/x-component';
@@ -133,6 +136,7 @@ export function Viewport() {
 
     let raf = 0;
     let frame = 0;
+    let lastFrame = performance.now();
     const loop = () => {
       raf = requestAnimationFrame(loop);
       // Draw Calls der Szene ohne die Hilfselemente des Editors messen.
@@ -144,9 +148,13 @@ export function Viewport() {
         if (calls !== useEditor.getState().drawCalls) useEditor.setState({ drawCalls: calls });
         gizmoHelper.visible = visible;
       }
+      // Animationen des Modells laufen wie auf der Seite: pro Abschnitt in Schleife, einmal oder mit dem Scrollen.
+      const state = useEditor.getState();
+      const now = performance.now();
+      updateClips(stage, state.project, state.pos, Math.min(0.1, (now - lastFrame) / 1000));
+      lastFrame = now;
       renderStage(stage);
       // Hotspot-Punkte und daran verankerte Komponenten folgen ihrem Bauteil.
-      const state = useEditor.getState();
       if (frameRef.current && state.project.hotspots.length > 0) {
         positionHotspots(stage, state.project, frameRef.current.querySelectorAll<HTMLElement>('[data-hotspot]'), {
           pos: state.pos,
@@ -176,8 +184,7 @@ export function Viewport() {
     applyEnvironment(stage, project.settings);
     applyFraming(stage, resolveFraming(project, breakpoint));
     applyState(stage, currentState(project, pos, draft));
-    // Animationsclips, die an die Timeline gebunden sind, auf ihre Position an dieser Stelle setzen.
-    applyClipTimes(stage);
+
     // Varianten, Materialien und Sichtbarkeit so zeigen, wie die Timeline sie an dieser Stelle wählt.
     applyOptions(stage, project, timelineWeights(stage, project), levelTints(project, resolveFields(project, testData(project))));
     orbit.target.copy(stage.target);
@@ -217,7 +224,9 @@ export function Viewport() {
 
   const css = useMemo(() => `@scope (.page-frame) {\n${renderCss(project)}\n}`, [project]);
   const html = useMemo(() => {
-    const options = { only: index, editor: true, indent: '', assetUrl: (name: string) => assets[name]?.url ?? '' };
+    // Bei festen Texten auch den nächsten Abschnitt ausgeben: Sein Text gleitet am Ende des aktuellen herein.
+    const only = project.settings.textMode !== 'flow' ? [index, index + 1] : index;
+    const options = { only, editor: true, indent: '', assetUrl: (name: string) => assets[name]?.url ?? '' };
     return `<main class="page">${renderSections(project, options)}</main>${renderFreeLayer(project, options)}${renderHotspotLayer(project, options)}`;
   }, [project, index, assets]);
 
@@ -226,9 +235,10 @@ export function Viewport() {
     const update = bindComponents(
       frameRef.current!,
       project.sections.map((s) => s.id),
+      { pinned: project.settings.textMode !== 'flow' },
     );
     update(pos);
-  }, [html, pos, project.sections]);
+  }, [html, pos, project.sections, project.settings.textMode]);
 
   // Aktive Variante in Buttons, Karten, Auswahllisten und Slidern anzeigen.
   useLayoutEffect(() => {
@@ -305,7 +315,30 @@ export function Viewport() {
       return;
     }
 
-    const inner = frame.querySelector('.section-inner')?.getBoundingClientRect();
+    let inner: { left: number; right: number; top: number; bottom: number } | undefined = frame
+      .querySelector('.section-inner')
+      ?.getBoundingClientRect();
+    if (inner && project.settings.textMode !== 'flow') {
+      // Feste Texte füllen das ganze Bild. Als Textspalte gilt der Bereich um die vorhandenen Elemente,
+      // ohne Elemente das Drittel auf der Seite der Textspalte.
+      const frameRect = frame.getBoundingClientRect();
+      const children = [...frame.querySelector('.section-inner')!.children].map((el) => el.getBoundingClientRect());
+      const right = section.align === 'right';
+      const margin = 0.04 * frameRect.width;
+      inner = children.length
+        ? {
+            left: Math.min(...children.map((r) => r.left)) - margin,
+            right: Math.max(...children.map((r) => r.right)) + margin,
+            top: Math.min(...children.map((r) => r.top)) - margin,
+            bottom: Math.max(...children.map((r) => r.bottom)) + margin,
+          }
+        : {
+            left: right ? frameRect.right - frameRect.width / 3 : frameRect.left,
+            right: right ? frameRect.right : frameRect.left + frameRect.width / 3,
+            top: frameRect.top,
+            bottom: frameRect.bottom,
+          };
+    }
     const inFlow =
       inner && event.clientX >= inner.left && event.clientX <= inner.right && event.clientY >= inner.top && event.clientY <= inner.bottom;
     if (inFlow) {
@@ -358,12 +391,17 @@ export function Viewport() {
       )}
 
       <div className="viewport-tools">
-        {(Object.keys(MODE_LABEL) as GizmoMode[]).map((m) => (
-          <button key={m} className={mode === m ? 'active' : ''} onClick={() => setMode(m)}>
-            {MODE_LABEL[m]}
-          </button>
-        ))}
+        {(Object.keys(MODE_LABEL) as GizmoMode[]).map((m) => {
+          const Icon = MODE_ICON[m];
+          return (
+            <button key={m} className={mode === m ? 'active' : ''} onClick={() => setMode(m)} title={MODE_LABEL[m]} aria-label={MODE_LABEL[m]}>
+              <Icon size={16} aria-hidden />
+            </button>
+          );
+        })}
+        <span className="tool-sep" />
         <button onClick={() => useEditor.setState({ selectedNode: 'model', selectedComponent: null })} disabled={!hasModel}>
+          <Box size={15} aria-hidden />
           Modell wählen
         </button>
         <button
@@ -372,6 +410,7 @@ export function Viewport() {
           onClick={() => useEditor.setState({ placingHotspot: !placingHotspot })}
           title="Danach auf das Modell klicken"
         >
+          <MapPin size={15} aria-hidden />
           Hotspot setzen
         </button>
         <span className="tool-gap" />
@@ -381,8 +420,12 @@ export function Viewport() {
             className={breakpoint === b ? 'active' : ''}
             onClick={() => useEditor.setState({ breakpoint: b })}
             title={`Vorschau und Gestaltung für ${DEVICE_LABEL[b]}`}
+            aria-label={DEVICE_LABEL[b]}
           >
-            {DEVICE_LABEL[b]}
+            {(() => {
+              const Icon = DEVICE_ICON[b];
+              return <Icon size={16} aria-hidden />;
+            })()}
           </button>
         ))}
       </div>

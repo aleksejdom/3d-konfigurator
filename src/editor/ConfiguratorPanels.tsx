@@ -1,3 +1,5 @@
+import { Block, Fold } from './Block';
+import { SlidersHorizontal } from 'lucide-react';
 import { useMemo } from 'react';
 import { actionToString, dominant, optionProp, parseAction } from '../core/actions.js';
 import type { ComponentAction, VariantGroup, VariantOption } from '../core/types';
@@ -193,11 +195,7 @@ export function GroupInspector({ id }: { id: string }) {
   const current = dominant(state[optionProp(id)] as string | Record<string, number> | undefined) ?? group.options[0]?.id;
 
   return (
-    <section className="panel-block highlight">
-      <header>
-        <h3>Variantengruppe · {KIND_LABELS[group.kind]}</h3>
-        <button onClick={() => removeGroup(id)}>Löschen</button>
-      </header>
+    <Block id="group" icon={SlidersHorizontal} title={<>Variantengruppe · {KIND_LABELS[group.kind]}</>} highlight actions={<><button onClick={() => removeGroup(id)}>Löschen</button></>}>
       <Field label="Name">
         <input value={group.name} onChange={(e) => updateGroup(id, (g) => void (g.name = e.target.value), 'vg-name')} />
       </Field>
@@ -213,7 +211,7 @@ export function GroupInspector({ id }: { id: string }) {
         </Field>
       )}
 
-      <h4>Wahlmöglichkeiten</h4>
+      <Fold id="options" title="Wahlmöglichkeiten">
       {group.options.map((option) => (
         <OptionBlock key={option.id} group={group} option={option} active={option.id === current} />
       ))}
@@ -225,7 +223,8 @@ export function GroupInspector({ id }: { id: string }) {
         Der Wechsel passiert an der gemerkten Stelle; mit einer Übergangslänge am Punkt wird beim Scrollen überblendet.
       </p>
 
-      <h4>Wahl des Besuchers</h4>
+      </Fold>
+      <Fold id="choice" title="Wahl des Besuchers" closed>
       <Field label="Überblenden (s)">
         <NumberInput value={group.fade} step={0.05} min={0} max={5} onChange={(n) => updateGroup(id, (g) => void (g.fade = n), 'vg-fade')} />
       </Field>
@@ -250,7 +249,8 @@ export function GroupInspector({ id }: { id: string }) {
         Wählt der Besucher selbst, hat seine Wahl Vorrang vor der Timeline und bleibt beim Scrollen erhalten. Sie endet
         in den hier angehakten Abschnitten oder durch die Aktion „Auswahl zurücksetzen“.
       </p>
-    </section>
+      </Fold>
+    </Block>
   );
 }
 
@@ -260,18 +260,14 @@ export function ConfiguratorList() {
   const selected = useEditor((s) => s.selectedGroup);
   const hasModel = useEditor((s) => s.project.model.file !== null);
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Konfigurator</h3>
-        <span className="row">
+    <Block id="configurator" icon={SlidersHorizontal} title="Konfigurator" actions={<><span className="row">
           <button disabled={!hasModel} onClick={() => addGroup('mesh')} title="Alternative Bauteile oder Ein-/Ausblenden">
             + Variante
           </button>
           <button disabled={!hasModel} onClick={() => addGroup('material')} title="Farbe oder Material wechseln">
             + Material
           </button>
-        </span>
-      </header>
+        </span></>}>
       {groups.length === 0 && (
         <p className="hint">Eine Gruppe fasst Wahlmöglichkeiten zusammen: alternative Bauteile, Ein- und Ausblenden oder Materialien.</p>
       )}
@@ -288,6 +284,6 @@ export function ConfiguratorList() {
           </li>
         ))}
       </ul>
-    </section>
+    </Block>
   );
 }

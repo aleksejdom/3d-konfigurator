@@ -1,3 +1,4 @@
+import { Download, FilePlus, FolderOpen, History, Play, Redo2, Save, SaveAll, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { PreviewDialog } from './PreviewDialog';
 import { dirLabel } from './platform';
@@ -86,33 +87,40 @@ export function TopBar() {
             if (!unsaved || confirm('Ungespeicherte Änderungen verwerfen und ein neues Projekt beginnen?')) newProject();
           }}
         >
+          <FilePlus size={15} aria-hidden />
           Neu
         </button>
-        <button onClick={openProject}>Öffnen</button>
+        <button onClick={openProject}><FolderOpen size={15} aria-hidden />
+          Öffnen</button>
         <button onClick={() => saveProject()} title="Strg+S">
+          <Save size={15} aria-hidden />
           Speichern
         </button>
-        <button onClick={() => saveProject(true)}>Speichern unter</button>
+        <button onClick={() => saveProject(true)} title="Speichern unter …" aria-label="Speichern unter"><SaveAll size={15} aria-hidden /></button>
       </div>
+      <span className="bar-sep" />
       <div className="row">
-        <button onClick={undo} disabled={!canUndo} title="Strg+Z">
-          Rückgängig
+        <button onClick={undo} disabled={!canUndo} title="Rückgängig (Strg+Z)" aria-label="Rückgängig">
+          <Undo2 size={15} aria-hidden />
         </button>
-        <button onClick={redo} disabled={!canRedo} title="Strg+Umschalt+Z">
-          Wiederholen
+        <button onClick={redo} disabled={!canRedo} title="Wiederholen (Strg+Umschalt+Z)" aria-label="Wiederholen">
+          <Redo2 size={15} aria-hidden />
         </button>
         <div className="menu-anchor">
-          <button onClick={() => setMenu(menu === 'snapshots' ? null : 'snapshots')}>Stände</button>
+          <button onClick={() => setMenu(menu === 'snapshots' ? null : 'snapshots')}><History size={15} aria-hidden />
+          Stände</button>
           {menu === 'snapshots' && <Snapshots onClose={() => setMenu(null)} />}
         </div>
       </div>
       <div className="row push">
         <button onClick={() => setPreview(true)} disabled={!hasModel}>
+          <Play size={15} aria-hidden />
           Vorschau
         </button>
         <div className="menu-anchor">
           <button className="primary" onClick={() => setMenu(menu === 'export' ? null : 'export')}>
-            Exportieren
+            <Download size={15} aria-hidden />
+          Exportieren
           </button>
           {menu === 'export' && (
             <div className="popover export-menu">

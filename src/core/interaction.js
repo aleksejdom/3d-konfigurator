@@ -24,15 +24,32 @@ export function hotspotPosition(stage, hotspot, out = new THREE.Vector3()) {
   return node ? node.localToWorld(out.fromArray(hotspot.position)) : null;
 }
 
-/** Detailansicht in Weltkoordinaten. Sie ist relativ zum Bauteil gespeichert und folgt ihm ebenfalls. */
+/**
+ * Detailansicht in Weltkoordinaten. Eine gemerkte Ansicht ist relativ zum Bauteil gespeichert und folgt ihm.
+ * Ohne gemerkte Ansicht fährt die Kamera automatisch vor den Hotspot: aus der Richtung, in die die
+ * Oberfläche zeigt, leicht zur aktuellen Kamera hin gedreht, und näher heran als bisher.
+ */
 export function viewInWorld(stage, hotspot, breakpoint) {
   const node = stage.nodes.get(hotspot.nodeId);
+  if (!node) return null;
   const view = resolveView(hotspot, breakpoint);
-  if (!node || !view) return null;
-  return {
-    position: node.localToWorld(new THREE.Vector3().fromArray(view.position)),
-    target: node.localToWorld(new THREE.Vector3().fromArray(view.target)),
-  };
+  if (view) {
+    return {
+      position: node.localToWorld(new THREE.Vector3().fromArray(view.position)),
+      target: node.localToWorld(new THREE.Vector3().fromArray(view.target)),
+    };
+  }
+  const target = node.localToWorld(new THREE.Vector3().fromArray(hotspot.position));
+  const toCamera = stage.camera.position.clone().sub(target);
+  const current = toCamera.length() || 1;
+  const direction = toCamera.clone().normalize();
+  if (hotspot.normal) {
+    const outward = new THREE.Vector3().fromArray(hotspot.normal).transformDirection(node.matrixWorld);
+    direction.multiplyScalar(0.35).addScaledVector(outward, 0.65).normalize();
+  }
+  const radius = stage.bounds.radius || 1;
+  const distance = Math.max(radius * 0.35, Math.min(current * 0.5, radius * 1.1));
+  return { position: target.clone().addScaledVector(direction, distance), target };
 }
 
 const world = new THREE.Vector3();
@@ -154,6 +171,8 @@ export function createInteraction({ stage, project, root, canvas, getBreakpoint,
     duration: 1,
     easing: 'easeInOut',
     posAtOpen: 0,
+    /** automatisch bestimmte Ansicht (relativ zum Bauteil), wenn keine gemerkt ist */
+    auto: null,
   };
   let lastPos = 0;
   let previousPos = 0;
@@ -171,6 +190,7 @@ export function createInteraction({ stage, project, root, canvas, getBreakpoint,
     const hotspot = project.hotspots.find((h) => h.id === id);
     if (!hotspot) return;
     detail.id = id;
+    detail.auto = null;
     // Die Scrollposition beim Öffnen wird festgehalten, sobald die Seite zur Ruhe gekommen ist.
     detail.posAtOpen = null;
     startFlight(hotspot, false);
@@ -198,7 +218,22 @@ export function createInteraction({ stage, project, root, canvas, getBreakpoint,
       }
     }
 
-    const view = !detail.closing && hotspot ? viewInWorld(stage, hotspot, getBreakpoint()) : null;
+    let view = null;
+    if (!detail.closing && hotspot) {
+      if (resolveView(hotspot, getBreakpoint())) {
+        view = viewInWorld(stage, hotspot, getBreakpoint());
+      } else {
+        // Automatische Ansicht: beim Öffnen einmal festlegen, danach nur noch dem Bauteil folgen.
+        const node = stage.nodes.get(hotspot.nodeId);
+        if (node && !detail.auto) {
+          const world = viewInWorld(stage, hotspot, getBreakpoint());
+          detail.auto = { position: node.worldToLocal(world.position.clone()), target: node.worldToLocal(world.target.clone()) };
+        }
+        if (node && detail.auto) {
+          view = { position: node.localToWorld(detail.auto.position.clone()), target: node.localToWorld(detail.auto.target.clone()) };
+        }
+      }
+    }
     // Ziel der Fahrt: die Detailansicht, sonst die aktuelle Kamera der Timeline.
     const goalPosition = view ? view.position : camera.position.clone();
     const goalTarget = view ? view.target : stage.target.clone();

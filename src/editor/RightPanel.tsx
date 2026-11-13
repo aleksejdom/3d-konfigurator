@@ -1,10 +1,12 @@
+import { Block, Fold } from './Block';
+import { Bookmark, Camera, Move3d, PanelTop, Settings, Sun } from 'lucide-react';
 import { capturePoster, importEnvironment, importPoster } from './store';
 import { FieldInspector } from './DataPanels';
 import { GroupInspector, MeshActionField } from './ConfiguratorPanels';
 import { useMemo } from 'react';
 import { EASINGS } from '../core/easing.js';
 import { DEFAULT_BLEND } from '../core/timeline.js';
-import type { Breakpoint, Budget, Framing, KeyValue, Scope, Section, Value, Vec3 } from '../core/types';
+import type { Breakpoint, Budget, Framing, KeyValue, Scope, Section, Value, Vec3, SectionClip } from '../core/types';
 import { BREAKPOINT_LABELS, Field, InheritRow, NumberInput, OptionalNumber, VectorField } from './fields';
 import { ComponentInspector } from './Inspector';
 import { HotspotInspector, InteractionEditor } from './InteractionPanels';
@@ -28,18 +30,14 @@ function KeyframeInspector({ id }: { id: string }) {
     }, `kv-${id}-${prop}`);
 
   return (
-    <section className="panel-block highlight">
-      <header>
-        <h3>Gespeicherter Punkt</h3>
-        <button
+    <Block id="keyframe" icon={Bookmark} title="Gespeicherter Punkt" highlight actions={<><button
           onClick={() => {
             update((p) => void (p.keyframes = p.keyframes.filter((k) => k.id !== id)));
             useEditor.setState({ selectedKeyframe: null });
           }}
         >
           Löschen
-        </button>
-      </header>
+        </button></>}>
       <Field label="Abschnitt">
         <select
           value={keyframe.sectionId}
@@ -128,11 +126,14 @@ function KeyframeInspector({ id }: { id: string }) {
         Werte ändern: Szene an dieser Stelle anpassen und erneut „Merken“ klicken. Ohne eigene Übergangslänge beginnt der
         Übergang am vorherigen Punkt.
       </p>
-    </section>
+    </Block>
   );
 }
 
 // ---------- Abschnitt ----------
+
+const ALL_CLIPS = '*';
+const NO_CLIPS: string[] = [];
 
 function SectionEditor({ section }: { section: Section }) {
   const patch = (recipe: (s: Section) => void, key?: string) =>
@@ -140,12 +141,17 @@ function SectionEditor({ section }: { section: Section }) {
       const target = p.sections.find((s) => s.id === section.id);
       if (target) recipe(target);
     }, key);
+  const clips = useEditor((s) => s.project.model.stats?.clips ?? NO_CLIPS);
+  const modeOf = (clip: string) => section.clips?.find((entry) => entry.clip === clip)?.mode ?? '';
+  const setClipMode = (clip: string, mode: string) =>
+    patch((s) => {
+      const rest = (s.clips ?? []).filter((entry) => entry.clip !== clip);
+      // „Alle Animationen“ steht vorn und gilt für jeden Clip ohne eigene Einstellung.
+      s.clips = mode ? (clip === ALL_CLIPS ? [{ clip, mode: mode as SectionClip['mode'] }, ...rest] : [...rest, { clip, mode: mode as SectionClip['mode'] }]) : rest;
+    });
 
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Abschnitt</h3>
-      </header>
+    <Block id="section" icon={PanelTop} title="Abschnitt">
       <Field label="Name">
         <input value={section.name} onChange={(e) => patch((s) => void (s.name = e.target.value), 'sec-name')} />
       </Field>
@@ -159,7 +165,28 @@ function SectionEditor({ section }: { section: Section }) {
           <option value="right">Rechts</option>
         </select>
       </Field>
-    </section>
+      {clips.length > 0 && (
+        <>
+          <Fold id="section-clips" title="Animation des Modells in diesem Abschnitt">
+          {[ALL_CLIPS, ...clips].map((clip) => (
+            <div className="clip-mode" key={clip}>
+              <span title={clip}>{clip === ALL_CLIPS ? 'Alle Animationen' : clip}</span>
+              <select aria-label={`Animation ${clip === ALL_CLIPS ? 'alle' : clip}`} value={modeOf(clip)} onChange={(e) => setClipMode(clip, e.target.value)}>
+                <option value="">{clip === ALL_CLIPS ? 'Einzeln festlegen' : 'Aus'}</option>
+                <option value="loop">In Schleife abspielen</option>
+                <option value="once">Einmal abspielen</option>
+                <option value="scroll">Mit dem Scrollen abspielen</option>
+              </select>
+            </div>
+          ))}
+          <p className="hint">
+            Die Animation läuft, solange dieser Abschnitt zu sehen ist. „Mit dem Scrollen“ spielt sie über die Länge des
+            Abschnitts vor und zurück.
+          </p>
+          </Fold>
+        </>
+      )}
+    </Block>
   );
 }
 
@@ -182,22 +209,16 @@ function SceneEditor() {
   return (
     <>
       {node && (
-        <section className="panel-block">
-          <header>
-            <h3>{selectedNode === 'model' ? 'Modell' : `Bauteil ${nodeName(selectedNode!)}`}</h3>
-          </header>
+        <Block id="node" icon={Move3d} title={<>{selectedNode === 'model' ? 'Modell' : `Bauteil ${nodeName(selectedNode!)}`}</>}>
           <VectorField label="Position" value={vec(`${node}.position`)} onChange={set(`${node}.position`)} />
           <VectorField label="Drehung (°)" value={vec(`${node}.rotation`)} scale={DEG} step={5} onChange={set(`${node}.rotation`)} />
           <VectorField label="Skalierung" value={vec(`${node}.scale`)} onChange={set(`${node}.scale`)} />
           <p className="hint">Für eine volle Umdrehung beim Scrollen 360 eintragen.</p>
           <MeshActionField nodeId={selectedNode!} />
           <InteractionEditor subject={node} />
-        </section>
+        </Block>
       )}
-      <section className="panel-block">
-        <header>
-          <h3>Kamera</h3>
-        </header>
+      <Block id="camera" icon={Camera} title="Kamera">
         <VectorField label="Position" value={vec('camera.position')} onChange={set('camera.position')} />
         <VectorField label="Blickziel" value={vec('camera.target')} onChange={set('camera.target')} />
         <Field label={`Bildwinkel: ${Math.round(num('camera.fov'))}°`}>
@@ -205,11 +226,8 @@ function SceneEditor() {
         </Field>
         <InteractionEditor subject="camera" />
         <FramingEditor />
-      </section>
-      <section className="panel-block">
-        <header>
-          <h3>Licht</h3>
-        </header>
+      </Block>
+      <Block id="light" icon={Sun} title="Licht" closed>
         <Field label="Farbe Hauptlicht">
           <input type="color" value={state['keyLight.color'] as string} onChange={(e) => set('keyLight.color')(e.target.value)} />
         </Field>
@@ -221,7 +239,7 @@ function SceneEditor() {
           <input type="range" min={0} max={4} step={0.1} value={num('ambient.intensity')} onChange={(e) => set('ambient.intensity')(parseFloat(e.target.value))} />
         </Field>
         <p className="hint">Änderungen gelten erst nach „Merken“ für diese Stelle der Seite.</p>
-      </section>
+      </Block>
     </>
   );
 }
@@ -241,7 +259,7 @@ function FramingEditor() {
 
   return (
     <>
-      <h4>Kameraausschnitt · {BREAKPOINT_LABELS[breakpoint]}</h4>
+      <Fold id="framing" title={<>Kameraausschnitt · {BREAKPOINT_LABELS[breakpoint]}</>} closed>
       {FRAMING_FIELDS.map((field) => {
         let source: 'own' | Breakpoint | null = null;
         let value: number | undefined;
@@ -268,6 +286,7 @@ function FramingEditor() {
         );
       })}
       <p className="hint">Der Ausschnitt gilt für die ganze Seite und wird nicht mit „Merken“ gespeichert.</p>
+      </Fold>
     </>
   );
 }
@@ -287,10 +306,7 @@ function PageSettings() {
   const posterUrl = useEditor((s) => (project.settings.poster ? s.assets[project.settings.poster]?.url : undefined));
   const setEnvironment = (patch: Partial<typeof environment>) => update((p) => void Object.assign(p.settings.environment, patch), 'environment');
   return (
-    <section className="panel-block">
-      <header>
-        <h3>Seite</h3>
-      </header>
+    <Block id="page" icon={Settings} title="Seite" closed>
       <Field label="Hintergrund">
         <input
           type="color"
@@ -308,6 +324,12 @@ function PageSettings() {
           onChange={(e) => update((p) => void (p.settings.scrollSmoothing = parseFloat(e.target.value)), 'smoothing')}
         />
       </Field>
+      <Field label="Texte beim Scrollen">
+        <select value={project.settings.textMode} onChange={(e) => update((p) => void (p.settings.textMode = e.target.value as 'pinned' | 'flow'))}>
+          <option value="pinned">Fest an ihrem Platz, Wechsel mit dem Abschnitt</option>
+          <option value="flow">Scrollen mit der Seite</option>
+        </select>
+      </Field>
       <Field label="Reduzierte Bewegung">
         <select
           value={project.settings.reducedMotion}
@@ -318,7 +340,7 @@ function PageSettings() {
         </select>
       </Field>
 
-      <h4>Umgebung (HDRI / Skybox)</h4>
+      <Fold id="environment" title="Umgebung (HDRI / Skybox)" closed>
       <div className="row">
         <button onClick={importEnvironment}>{environment.file ? 'Austauschen' : 'HDRI oder Panorama wählen'}</button>
         {environment.file && <button onClick={() => update((p) => void (p.settings.environment.file = null))}>Entfernen</button>}
@@ -349,7 +371,8 @@ function PageSettings() {
         </>
       )}
 
-      <h4>Posterbild beim Laden</h4>
+      </Fold>
+      <Fold id="poster" title="Posterbild beim Laden" closed>
       {posterUrl && <img className="poster-thumb" src={posterUrl} alt="Posterbild" />}
       <div className="row wrap">
         <button onClick={capturePoster} disabled={!project.model.file}>
@@ -360,7 +383,8 @@ function PageSettings() {
       </div>
       <p className="hint">Das Bild ist zu sehen, bis das Modell geladen und zum ersten Mal gerendert ist.</p>
 
-      <h4>Performance-Budgets</h4>
+      </Fold>
+      <Fold id="budgets" title="Performance-Budgets" closed>
       <div className="budgets">
         <span />
         <span>Desktop</span>
@@ -381,7 +405,8 @@ function PageSettings() {
           </div>
         ))}
       </div>
-    </section>
+      </Fold>
+    </Block>
   );
 }
 
