@@ -11,6 +11,7 @@ import {
   Info,
   Layers as LayersIcon,
   Lightbulb,
+  Pencil,
   Ruler,
   Type,
   LayoutList,
@@ -91,6 +92,16 @@ export function budgetWarnings(stats: ModelStats, file: string, drawCalls: numbe
 function Sections() {
   const project = useEditor((s) => s.project);
   const selected = useEditor((s) => s.selectedSection);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const rename = (id: string, name: string) => {
+    setRenaming(null);
+    const next = name.trim();
+    if (!next) return;
+    update((p) => {
+      const section = p.sections.find((s) => s.id === id);
+      if (section && section.name !== next) section.name = next;
+    });
+  };
 
   const move = (index: number, by: number) =>
     update((p) => {
@@ -111,9 +122,27 @@ function Sections() {
       <ul className="list">
         {project.sections.map((section, i) => (
           <li key={section.id} className={section.id === selected ? 'selected' : ''}>
-            <button className="list-main" onClick={() => setPos(i)}>
-              <span className="index">{i + 1}</span> {section.name}
-              <small>{section.height} vh</small>
+            {renaming === section.id ? (
+              <input
+                className="list-rename"
+                aria-label="Name des Abschnitts"
+                autoFocus
+                defaultValue={section.name}
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => rename(section.id, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') rename(section.id, e.currentTarget.value);
+                  if (e.key === 'Escape') setRenaming(null);
+                }}
+              />
+            ) : (
+              <button className="list-main" onClick={() => setPos(i)} onDoubleClick={() => setRenaming(section.id)} title="Doppelklick zum Umbenennen">
+                <span className="index">{i + 1}</span> {section.name}
+                <small>{section.height} vh</small>
+              </button>
+            )}
+            <button onClick={() => setRenaming(section.id)} aria-label={`${section.name} umbenennen`} title="Umbenennen">
+              <Pencil size={13} aria-hidden />
             </button>
             <button disabled={i === 0} onClick={() => move(i, -1)} aria-label="Nach oben" title="Nach oben">
               ↑

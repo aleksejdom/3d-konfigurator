@@ -1400,3 +1400,8 @@ button svg {
   margin-right: 4px;
   vertical-align: -2px;
 }
+
+.list-rename {
+  flex: 1;
+  min-width: 0;
+}

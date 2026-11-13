@@ -100,7 +100,8 @@ Schließt Abnahmekriterium 1 ab.
 - Ausrichten: Mehrfachauswahl mit Umschalt-Klick (Viewport oder Ebenen), gemeinsames Verschieben, Ausrichten an der Auswahl oder am Inhaltsbereich, horizontal und vertikal verteilen (gleichmäßig oder mit festem Abstand in px)
 - Text-Werkzeug: Schrift (neun mitgelieferte Familien oder eigene Schriftdatei woff2/ttf/otf), Größe, Stärke, Zeilenabstand, Laufweite, Farbe, Ausrichtung; Padding und Margin je Seite. Schrift der Seite unter „Schriften“
 - Lichter im neuen Bereich „Licht“: Hauptlicht und Umgebungslicht, dazu Spot-, Flächen- und Punktlichter mit Farbe, Stärke, Öffnungswinkel, weichem Rand, Größe, Reichweite, Position und Blickziel. Verschieben mit dem Anfasser im Viewport. Jedes Licht lässt sich pro Abschnitt merken
-- Ladeanzeige während des Ladens des Modells: Ring oder Balken mit Fortschritt, pulsierende Punkte oder keine
+- Ladeanzeige während des Ladens des Modells: Ring oder Balken mit Fortschritt, pulsierende Punkte oder keine; der Hinweis „3D-Modell wird geladen“ und die Prozentzahl stehen darunter
+- Abschnitte lassen sich direkt in der Liste umbenennen (Stift oder Doppelklick)
 - Timeline: Punkte kopieren und an anderer Stelle einfügen (Strg+C / Strg+V oder Schaltflächen)
 - Projektformat Version 8; Positionen in Prozent aus älteren Projekten werden in px umgerechnet (Bezug 1440 × 810 px, Tablet 820 × 1100, Mobile 390 × 780)
 

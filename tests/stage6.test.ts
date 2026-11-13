@@ -185,10 +185,10 @@ describe('Ladeanzeige', () => {
     const project = createProject();
     expect(renderLoader(project)).toBe('');
     project.model.file = 'a.glb';
-    expect(renderLoader(project)).toContain('class="loader loader-ring" role="progressbar"');
+    expect(renderLoader(project)).toContain('class="loader loader--ring" role="progressbar"');
     project.settings.loader = 'none';
     expect(renderLoader(project)).toBe('');
     project.settings.loader = 'bar';
-    expect(buildExport(project, 'vanilla', {}).files['index.html']).toContain('loader-bar');
+    expect(buildExport(project, 'vanilla', {}).files['index.html']).toContain('loader-track-bar');
   });
 });

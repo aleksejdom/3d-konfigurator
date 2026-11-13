@@ -579,23 +579,24 @@ export function renderCss(project) {
   color: var(--text-muted);
   font-size: 0.85rem;
   letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .loader-value {
-  font-size: 0.95rem;
+  margin-left: 0.25em;
+  color: var(--text);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.loader-ring {
-  grid-area: 1 / 1;
+.loader-circle {
   width: 4.5rem;
   height: 4.5rem;
   rotate: -90deg;
   animation: loader-spin 1.1s linear infinite;
 }
 
-.loader-ring circle {
+.loader-circle circle {
   fill: none;
   stroke-width: 4;
   stroke-linecap: round;
@@ -611,13 +612,8 @@ export function renderCss(project) {
   transition: stroke-dasharray 0.25s;
 }
 
-.loader.loader-ring .loader-value {
-  grid-area: 1 / 1;
-  align-self: center;
-}
-
 /* Mit bekanntem Fortschritt füllt sich der Ring, statt sich zu drehen. */
-.has-progress .loader-ring {
+.has-progress .loader-circle {
   animation: none;
 }
 
@@ -625,37 +621,39 @@ export function renderCss(project) {
   stroke-dasharray: calc(var(--progress) * 100) 100;
 }
 
-.loader-bar {
+.loader-track-bar {
   position: relative;
-  width: 12rem;
-  height: 4px;
+  display: block;
+  width: 14rem;
+  max-width: 60vw;
+  height: 6px;
   overflow: hidden;
-  border-radius: 2px;
+  border-radius: 3px;
   background: var(--surface-line);
 }
 
-.loader-bar span {
+.loader-track-bar span {
   position: absolute;
   inset: 0;
   width: 35%;
-  border-radius: 2px;
+  border-radius: 3px;
   background: var(--text);
   animation: loader-slide 1.2s ease-in-out infinite;
 }
 
-.has-progress .loader-bar span {
+.has-progress .loader-track-bar span {
   width: calc(var(--progress) * 100%);
   animation: none;
   transition: width 0.25s;
 }
 
-.loader-dots {
+.loader-pulse {
   display: flex;
   gap: 0.5rem;
   padding: 0.6rem 0;
 }
 
-.loader-dots span {
+.loader-pulse span {
   width: 0.7rem;
   height: 0.7rem;
   border-radius: 50%;
@@ -663,11 +661,11 @@ export function renderCss(project) {
   animation: loader-pulse 1s ease-in-out infinite;
 }
 
-.loader-dots span:nth-child(2) {
+.loader-pulse span:nth-child(2) {
   animation-delay: 0.15s;
 }
 
-.loader-dots span:nth-child(3) {
+.loader-pulse span:nth-child(3) {
   animation-delay: 0.3s;
 }
 
@@ -701,9 +699,9 @@ export function renderCss(project) {
 }
 
 /* Reduzierte Bewegung: Die Ladeanzeige steht still und zeigt nur Text und Zahl. */
-.reduced-motion .loader-ring,
-.reduced-motion .loader-bar span,
-.reduced-motion .loader-dots span {
+.reduced-motion .loader-circle,
+.reduced-motion .loader-track-bar span,
+.reduced-motion .loader-pulse span {
   animation: none;
 }
 
@@ -1211,13 +1209,14 @@ ${sections.length > 0 ? '\n' + sections.join('\n\n') + '\n' : ''}`;
 export function renderLoader(project, indent = '') {
   const kind = project.settings.loader || 'ring';
   if (kind === 'none' || !project.model.file) return '';
-  const inner =
+  // Oben die Anzeige (Ring, Balken oder Punkte), darunter der Hinweis und der Fortschritt in Prozent.
+  const graphic =
     kind === 'ring'
-      ? '<svg class="loader-ring" viewBox="0 0 64 64" aria-hidden="true"><circle class="loader-track" cx="32" cy="32" r="27" pathLength="100"></circle><circle class="loader-arc" cx="32" cy="32" r="27" pathLength="100"></circle></svg><span class="loader-value"></span>'
+      ? '<svg class="loader-circle" viewBox="0 0 64 64" aria-hidden="true"><circle class="loader-track" cx="32" cy="32" r="27" pathLength="100"></circle><circle class="loader-arc" cx="32" cy="32" r="27" pathLength="100"></circle></svg>'
       : kind === 'bar'
-        ? '<span class="loader-bar" aria-hidden="true"><span></span></span><span class="loader-value"></span>'
-        : '<span class="loader-dots" aria-hidden="true"><span></span><span></span><span></span></span>';
-  return `${indent}<div class="loader loader-${kind}" role="progressbar" aria-label="3D-Szene wird geladen" aria-valuemin="0" aria-valuemax="100">${inner}<span class="loader-text">3D-Szene wird geladen</span></div>`;
+        ? '<span class="loader-track-bar" aria-hidden="true"><span></span></span>'
+        : '<span class="loader-pulse" aria-hidden="true"><span></span><span></span><span></span></span>';
+  return `${indent}<div class="loader loader--${kind}" role="progressbar" aria-label="3D-Modell wird geladen" aria-valuemin="0" aria-valuemax="100">${graphic}<span class="loader-text">3D-Modell wird geladen <span class="loader-value"></span></span></div>`;
 }
 
 /** Namen aller Bilder und Schriftdateien, die das Projekt verwendet. */
