@@ -1,7 +1,7 @@
 // Erzeugt das HTML und CSS der Seite aus dem Projekt.
 // Der Editor-Viewport, die Vorschau und beide Exporte verwenden dieselbe Ausgabe.
 
-import { BREAKPOINT_WIDTHS } from '../core/components.js';
+import { BREAKPOINT_WIDTHS, cascade } from '../core/components.js';
 import { actionToString } from '../core/actions.js';
 
 /** Maskiert Text für HTML. Geschweifte Klammern werden ebenfalls maskiert (Astro-Vorlagen). */
@@ -300,23 +300,75 @@ function isDark(hex) {
 
 const DISPLAY = { card: 'flex', infobox: 'flex', button: 'inline-block', select: 'inline-block', slider: 'grid', value: 'grid', status: 'flex', connection: 'flex' };
 const ALIGN_ITEMS = { left: 'flex-start', center: 'center', right: 'flex-end' };
-const POSITION_KEYS = ['x', 'y', 'visible'];
+const POSITION_KEYS = ['x', 'y', 'anchorX', 'anchorY', 'visible'];
+const PLACE_KEYS = ['x', 'y', 'anchorX', 'anchorY'];
+
+/** Schriften zur Auswahl. Eigene Schriftdateien des Projekts heißen "font:<ID>". */
+export const FONT_STACKS = {
+  system: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  grotesk: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+  humanist: "'Segoe UI', Candara, 'Trebuchet MS', Verdana, sans-serif",
+  geometric: "Avenir, Montserrat, 'Century Gothic', Corbel, sans-serif",
+  rounded: "ui-rounded, 'Hiragino Maru Gothic ProN', Quicksand, 'Arial Rounded MT Bold', sans-serif",
+  serif: "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif",
+  transitional: "Charter, 'Bitstream Charter', Cambria, 'Times New Roman', serif",
+  slab: "Rockwell, 'Rockwell Nova', 'Roboto Slab', 'DejaVu Serif', serif",
+  mono: "ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace",
+};
+
+/** CSS-Wert für eine gewählte Schrift. */
+export function fontFamily(project, key) {
+  if (!key) return null;
+  if (key.startsWith('font:')) {
+    const font = (project.fonts || []).find((f) => f.id === key.slice(5));
+    return font ? `'${font.name.replace(/['\\]/g, '')}', ${FONT_STACKS.system}` : null;
+  }
+  return FONT_STACKS[key] || null;
+}
+
+const sides = (value) => (Array.isArray(value) ? value.map((n) => `${n}px`).join(' ') : `${value}px`);
+
+/**
+ * Position einer frei platzierten Komponente. Sie hängt an einem Anker: horizontal am linken Rand, an der
+ * Mitte oder am rechten Rand des Inhaltsbereichs (Inner-Wrapper), vertikal oben, mittig oder unten im Bild.
+ * x und y sind der Abstand zum Anker in px. So bleiben Abstände bei jeder Fenstergröße gleich.
+ * --dx und --dy verschieben die Komponente während des Ziehens im Editor.
+ */
+export function placementLines(style) {
+  const ax = style.anchorX || 'left';
+  const ay = style.anchorY || 'center';
+  const x = Math.round(style.x || 0);
+  const y = Math.round(style.y || 0);
+  const lines = [];
+  if (ax === 'right') lines.push('left: auto;', `right: calc(var(--wrap) - ${x}px - var(--dx, 0px));`);
+  else lines.push(`left: calc(${ax === 'center' ? '50%' : 'var(--wrap)'} + ${x}px + var(--dx, 0px));`, 'right: auto;');
+  if (ay === 'bottom') lines.push('top: auto;', `bottom: calc(${-y}px - var(--dy, 0px));`);
+  else lines.push(`top: calc(${ay === 'center' ? '50%' : '0px'} + ${y}px + var(--dy, 0px));`, 'bottom: auto;');
+  lines.push(`translate: ${ax === 'center' ? '-50%' : '0'} ${ay === 'center' ? '-50%' : '0'};`);
+  return lines;
+}
 
 /** CSS-Deklarationen für die gesetzten Werte einer Gestaltung. */
-function declarations(style, type, keys) {
+function declarations(project, style, type, keys) {
   const lines = [];
   for (const key of Object.keys(style)) {
     if (keys && !keys.includes(key)) continue;
     const value = style[key];
     if (value === undefined || value === null) continue;
-    if (key === 'x') lines.push(`left: ${value}%;`);
-    else if (key === 'y') lines.push(`top: ${value}%;`);
+    if (PLACE_KEYS.includes(key)) continue;
     else if (key === 'width') lines.push(`width: ${value}px;`);
     else if (key === 'fontSize') lines.push(`font-size: ${value}px;`);
+    else if (key === 'fontFamily') {
+      const family = fontFamily(project, value);
+      if (family) lines.push(`font-family: ${family};`);
+    } else if (key === 'fontWeight') lines.push(`font-weight: ${value};`);
+    else if (key === 'lineHeight') lines.push(`line-height: ${value};`);
+    else if (key === 'letterSpacing') lines.push(`letter-spacing: ${value}em;`);
     else if (key === 'visible') lines.push(`display: ${value ? DISPLAY[type] || 'block' : 'none'};`);
     else if (key === 'color') lines.push(`color: ${value};`);
     else if (key === 'background') lines.push(`background: ${value};`);
-    else if (key === 'padding') lines.push(`padding: ${value}px;`);
+    else if (key === 'padding') lines.push(`padding: ${sides(value)};`);
+    else if (key === 'margin') lines.push(`margin: ${sides(value)};`);
     else if (key === 'radius') lines.push(`border-radius: ${value}px;`);
     else if (key === 'gap') lines.push(`gap: ${value}px;`);
     else if (key === 'align') {
@@ -330,27 +382,32 @@ function declarations(style, type, keys) {
 /** Sammelt je Breakpoint die Regeln aller Komponenten und Vorlagen. */
 function componentRules(project) {
   const rules = { desktop: [], tablet: [], mobile: [] };
-  const add = (id, type, component, keys) => {
+  const add = (id, type, component, keys, free) => {
     const sources = { desktop: component.style, tablet: component.overrides.tablet, mobile: component.overrides.mobile };
     for (const breakpoint of Object.keys(rules)) {
-      const lines = declarations(sources[breakpoint] || {}, type, keys);
+      const own = sources[breakpoint] || {};
+      const lines = declarations(project, own, type, keys);
+      // Frei platziert: Position aus den am Breakpoint geltenden Werten, sobald dort einer davon gesetzt ist.
+      if (free && (breakpoint === 'desktop' || PLACE_KEYS.some((key) => own[key] !== undefined))) {
+        lines.unshift(...placementLines(cascade(component.style, component.overrides, breakpoint)));
+      }
       if (lines.length > 0) rules[breakpoint].push({ selector: `.c.c-${id}`, lines });
     }
   };
-  const visit = (component) => {
+  const visit = (component, top) => {
     if (component.type === 'instance') {
       const template = project.templates.find((t) => t.id === component.templateId);
       // Die Instanz selbst bestimmt nur Position und Sichtbarkeit.
-      if (template) add(component.id, template.root.type, component, POSITION_KEYS);
+      if (template) add(component.id, template.root.type, component, POSITION_KEYS, top && component.placement === 'free');
       return;
     }
-    add(component.id, component.type, component);
-    (component.children || []).forEach(visit);
+    add(component.id, component.type, component, undefined, top && component.placement === 'free');
+    (component.children || []).forEach((child) => visit(child, false));
   };
-  project.sections.forEach((section) => section.components.forEach(visit));
+  project.sections.forEach((section) => section.components.forEach((component) => visit(component, true)));
   // Vorlagen: Layout für alle Instanzen gemeinsam, ohne Position.
   const visitTemplate = (component, isRoot) => {
-    const keys = isRoot ? Object.keys({ ...component.style, ...component.overrides.tablet, ...component.overrides.mobile }).filter((k) => k !== 'x' && k !== 'y') : undefined;
+    const keys = isRoot ? Object.keys({ ...component.style, ...component.overrides.tablet, ...component.overrides.mobile }).filter((k) => !PLACE_KEYS.includes(k)) : undefined;
     add(component.id, component.type, component, keys);
     (component.children || []).forEach((child) => visitTemplate(child, false));
   };
@@ -377,10 +434,13 @@ const PINNED_CSS = `
 
 .section-inner {
   position: fixed;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: var(--page-left);
+  width: min(100%, var(--page-width));
   justify-content: center;
   max-width: none;
-  padding: 12vh 6cqi;
+  padding: 12vh var(--wrap);
   pointer-events: none;
   opacity: var(--text-opacity, 0);
   transform: translateY(var(--text-shift, 0px));
@@ -403,6 +463,16 @@ const PINNED_CSS = `
 }
 `;
 
+/**
+ * @font-face-Regeln für die Schriftdateien des Projekts.
+ * @param {(file: string) => string} assetUrl Adresse einer Schriftdatei
+ */
+export function renderFontFaces(project, assetUrl = (file) => 'fonts/' + file) {
+  return (project.fonts || [])
+    .map((font) => `@font-face {\n  font-family: '${font.name.replace(/['\\]/g, '')}';\n  src: url('${assetUrl(font.file)}');\n  font-display: swap;\n}\n\n`)
+    .join('');
+}
+
 export function renderCss(project) {
   const background = project.settings.background;
   const dark = isDark(background);
@@ -417,6 +487,7 @@ export function renderCss(project) {
   }
 
   const pinned = project.settings.textMode !== 'flow';
+  const layout = { pageWidth: 0, innerWidth: 1200, padding: 24, ...project.settings.layout };
   const levels = (project.data && project.data.levelColors) || { ok: '#3ecf8e', warn: '#f5a623', alarm: '#e5484d', off: '#8b9099' };
 
   return `.site {
@@ -431,10 +502,16 @@ export function renderCss(project) {
   --level-warn: ${levels.warn};
   --level-alarm: ${levels.alarm};
   --level-off: ${levels.off};
+  /* Seitenbreite und Inhaltsbereich (Inner-Wrapper). --wrap ist der Abstand des Inhaltsbereichs zum Seitenrand. */
+  --page-width: ${layout.pageWidth ? layout.pageWidth + 'px' : '100%'};
+  --page-left: max(0px, (100% - var(--page-width)) / 2);
+  --inner-width: ${layout.innerWidth}px;
+  --inner-pad: ${layout.padding}px;
+  --wrap: max(var(--inner-pad), (100cqw - var(--inner-width)) / 2);
   margin: 0;
   background: var(--background);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: ${fontFamily(project, project.settings.font) || FONT_STACKS.system};
   line-height: 1.5;
 }
 
@@ -447,8 +524,9 @@ export function renderCss(project) {
 /* Die 3D-Szene liegt fest hinter dem Seiteninhalt. */
 #stage {
   position: fixed;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  left: var(--page-left);
+  width: min(100%, var(--page-width));
   height: 100%;
   display: block;
 }
@@ -456,8 +534,9 @@ export function renderCss(project) {
 /* Posterbild während des Ladens. Das Skript setzt .is-ready, sobald das Modell zu sehen ist. */
 .poster {
   position: fixed;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  left: var(--page-left);
+  width: min(100%, var(--page-width));
   height: 100%;
   object-fit: cover;
   pointer-events: none;
@@ -466,6 +545,166 @@ export function renderCss(project) {
 
 .is-ready .poster {
   opacity: 0;
+}
+
+/* ---------- Ladeanzeige ---------- */
+
+.loader {
+  --progress: 0;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  display: grid;
+  justify-items: center;
+  gap: 0.9rem;
+  min-width: 11rem;
+  padding: 1.4rem 1.6rem 1.2rem;
+  border: 1px solid var(--surface-line);
+  border-radius: 20px;
+  background: var(--surface);
+  backdrop-filter: blur(16px);
+  color: var(--text);
+  translate: -50% -50%;
+  transition: opacity 0.5s, scale 0.5s, visibility 0.5s;
+}
+
+.loader.is-done {
+  opacity: 0;
+  scale: 0.94;
+  visibility: hidden;
+}
+
+.loader-text {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.loader-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.loader-ring {
+  grid-area: 1 / 1;
+  width: 4.5rem;
+  height: 4.5rem;
+  rotate: -90deg;
+  animation: loader-spin 1.1s linear infinite;
+}
+
+.loader-ring circle {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.loader-track {
+  stroke: var(--surface-line);
+}
+
+.loader-arc {
+  stroke: var(--text);
+  stroke-dasharray: 28 100;
+  transition: stroke-dasharray 0.25s;
+}
+
+.loader.loader-ring .loader-value {
+  grid-area: 1 / 1;
+  align-self: center;
+}
+
+/* Mit bekanntem Fortschritt füllt sich der Ring, statt sich zu drehen. */
+.has-progress .loader-ring {
+  animation: none;
+}
+
+.has-progress .loader-arc {
+  stroke-dasharray: calc(var(--progress) * 100) 100;
+}
+
+.loader-bar {
+  position: relative;
+  width: 12rem;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-line);
+}
+
+.loader-bar span {
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  border-radius: 2px;
+  background: var(--text);
+  animation: loader-slide 1.2s ease-in-out infinite;
+}
+
+.has-progress .loader-bar span {
+  width: calc(var(--progress) * 100%);
+  animation: none;
+  transition: width 0.25s;
+}
+
+.loader-dots {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.6rem 0;
+}
+
+.loader-dots span {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--text);
+  animation: loader-pulse 1s ease-in-out infinite;
+}
+
+.loader-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.loader-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes loader-spin {
+  to {
+    rotate: 270deg;
+  }
+}
+
+@keyframes loader-slide {
+  from {
+    translate: -100% 0;
+  }
+
+  to {
+    translate: 290% 0;
+  }
+}
+
+@keyframes loader-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    scale: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+/* Reduzierte Bewegung: Die Ladeanzeige steht still und zeigt nur Text und Zahl. */
+.reduced-motion .loader-ring,
+.reduced-motion .loader-bar span,
+.reduced-motion .loader-dots span {
+  animation: none;
 }
 
 /* Reduzierte Bewegung: keine weichen Übergänge in der Oberfläche. */
@@ -477,13 +716,15 @@ export function renderCss(project) {
 .page {
   position: relative;
   z-index: 1;
+  max-width: var(--page-width);
+  margin: 0 auto;
   container-type: inline-size;
 }
 
 .section {
   display: flex;
   align-items: center;
-  padding: 12vh 6cqi;
+  padding: 12vh var(--wrap);
 }
 
 .section.align-center {
@@ -510,7 +751,10 @@ ${pinned ? PINNED_CSS : ''}
 /* Frei platzierte Komponenten liegen fest über dem 3D-Canvas. */
 .free-layer {
   position: fixed;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: var(--page-left);
+  width: min(100%, var(--page-width));
   z-index: 2;
   pointer-events: none;
   container-type: size;
@@ -520,7 +764,7 @@ ${pinned ? PINNED_CSS : ''}
   position: absolute;
   left: 50%;
   top: 40%;
-  max-width: calc(100% - 2rem);
+  max-width: calc(100% - 2 * var(--inner-pad));
   pointer-events: auto;
 }
 
@@ -529,19 +773,44 @@ ${pinned ? PINNED_CSS : ''}
 }
 
 .headline {
-  font-size: clamp(1.9rem, 4.2cqi, 3.2rem);
+  font-size: 2.75rem;
   line-height: 1.08;
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
 
 h1.headline {
-  font-size: clamp(2.4rem, 6cqi, 4.5rem);
+  font-size: 4rem;
 }
 
 .text {
-  font-size: clamp(1rem, 1.4cqi, 1.2rem);
+  font-size: 1.125rem;
   color: var(--text-muted);
+}
+
+/* Schriftgrößen sind je Breakpoint fest, damit Abstände in jedem Fenster gleich aussehen. */
+@container (max-width: ${BREAKPOINT_WIDTHS.tablet}px) {
+  .headline {
+    font-size: 2.25rem;
+  }
+
+  h1.headline {
+    font-size: 3rem;
+  }
+}
+
+@container (max-width: ${BREAKPOINT_WIDTHS.mobile}px) {
+  .headline {
+    font-size: 1.75rem;
+  }
+
+  h1.headline {
+    font-size: 2.25rem;
+  }
+
+  .text {
+    font-size: 1rem;
+  }
 }
 
 .image {
@@ -612,7 +881,10 @@ h1.headline {
 
 .hotspot-layer {
   position: fixed;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: var(--page-left);
+  width: min(100%, var(--page-width));
   z-index: 3;
   pointer-events: none;
 }
@@ -932,7 +1204,23 @@ button.button {
 ${sections.length > 0 ? '\n' + sections.join('\n\n') + '\n' : ''}`;
 }
 
-/** Namen aller Bilder, die das Projekt verwendet. */
+/**
+ * Ladeanzeige: liegt über der Szene, bis das Modell zum ersten Mal gerendert ist.
+ * Das Skript setzt --progress (0 bis 1) und die Zahl, sobald der Fortschritt bekannt ist.
+ */
+export function renderLoader(project, indent = '') {
+  const kind = project.settings.loader || 'ring';
+  if (kind === 'none' || !project.model.file) return '';
+  const inner =
+    kind === 'ring'
+      ? '<svg class="loader-ring" viewBox="0 0 64 64" aria-hidden="true"><circle class="loader-track" cx="32" cy="32" r="27" pathLength="100"></circle><circle class="loader-arc" cx="32" cy="32" r="27" pathLength="100"></circle></svg><span class="loader-value"></span>'
+      : kind === 'bar'
+        ? '<span class="loader-bar" aria-hidden="true"><span></span></span><span class="loader-value"></span>'
+        : '<span class="loader-dots" aria-hidden="true"><span></span><span></span><span></span></span>';
+  return `${indent}<div class="loader loader-${kind}" role="progressbar" aria-label="3D-Szene wird geladen" aria-valuemin="0" aria-valuemax="100">${inner}<span class="loader-text">3D-Szene wird geladen</span></div>`;
+}
+
+/** Namen aller Bilder und Schriftdateien, die das Projekt verwendet. */
 export function usedImages(project) {
   const names = new Set();
   const visit = (component) => {
@@ -943,5 +1231,6 @@ export function usedImages(project) {
   project.sections.forEach((section) => section.components.forEach(visit));
   project.templates.forEach((template) => visit(template.root));
   if (project.settings.poster) names.add(project.settings.poster);
+  (project.fonts || []).forEach((font) => names.add(font.file));
   return [...names];
 }

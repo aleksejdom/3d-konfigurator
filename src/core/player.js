@@ -10,16 +10,66 @@ import { bindComponents, breakpointFor, resolveFraming } from './components.js';
 import { createInteraction } from './interaction.js';
 import { createConfigurator } from './configurator.js';
 import { createDataBindings } from './data.js';
-import { applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, loadModel, renderStage, resizeStage } from './stage.js';
+import { applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, loadModel, renderStage, resizeStage, syncLights } from './stage.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
 /** Wartet so lange, wie die Übertragung über die simulierte Verbindung dauern würde. */
-async function simulateDownload(bytes, startedAt, throttle) {
+async function simulateDownload(bytes, startedAt, throttle, onProgress) {
   if (!throttle) return;
   const duration = throttle.latencyMs + ((bytes * 8) / (throttle.mbps * 1e6)) * 1000;
+  const timer = setInterval(() => onProgress(Math.min(0.99, (performance.now() - startedAt) / duration)), 80);
   const remaining = duration - (performance.now() - startedAt);
   if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+  clearInterval(timer);
+}
+
+/** Lädt eine Datei und meldet den Fortschritt (0 bis 1), sofern der Server die Größe nennt. */
+async function download(url, onProgress) {
+  const response = await fetch(url);
+  const total = Number(response.headers.get('content-length')) || 0;
+  if (!response.body || !total) return response.arrayBuffer();
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    onProgress(Math.min(0.99, received / total));
+  }
+  const data = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    data.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return data.buffer;
+}
+
+/**
+ * Ladeanzeige der Seite (.loader). Ohne bekannten Fortschritt läuft sie als Animation,
+ * mit Fortschritt zeigt sie den Anteil als Ring oder Balken und als Zahl.
+ * @param {HTMLElement | null} element
+ */
+function createLoader(element) {
+  const label = element && element.querySelector('.loader-value');
+  return {
+    progress(fraction) {
+      if (!element) return;
+      element.classList.add('has-progress');
+      element.style.setProperty('--progress', String(fraction));
+      element.setAttribute('aria-valuenow', String(Math.round(fraction * 100)));
+      if (label) label.textContent = Math.round(fraction * 100) + ' %';
+    },
+    done() {
+      if (!element) return;
+      element.classList.add('is-done');
+      // Nach dem Ausblenden entfernen, damit die Anzeige keine Klicks abfängt und nicht weiter animiert.
+      setTimeout(() => element.remove(), 700);
+    },
+  };
 }
 
 /**
@@ -50,6 +100,7 @@ export async function startPlayer({
   reducedMotion,
 }) {
   const stage = createStage(canvas);
+  syncLights(stage, project);
   applyEnvironment(stage, project.settings);
 
   // Reduzierte Bewegung: Wunsch des Geräts, sofern das Projekt ihn beachtet.
@@ -139,10 +190,12 @@ export async function startPlayer({
   };
   requestAnimationFrame(frame);
 
+  const loader = createLoader(document.querySelector('.loader'));
   if (modelUrl || modelBuffer) {
     const startedAt = performance.now();
-    const buffer = modelBuffer || (await (await fetch(modelUrl)).arrayBuffer());
-    await simulateDownload(buffer.byteLength, startedAt, throttle);
+    const buffer = modelBuffer || (await download(modelUrl, loader.progress));
+    await simulateDownload(buffer.byteLength, startedAt, throttle, loader.progress);
+    loader.progress(1);
     await loadModel(stage, buffer, {
       // Begleitdateien eines .gltf liegen im Ordner der Modelldatei.
       path: modelUrl ? modelUrl.slice(0, modelUrl.lastIndexOf('/') + 1) : '',
@@ -156,10 +209,13 @@ export async function startPlayer({
     interaction.update(0, currentPos);
     renderStage(stage);
     canvas.dataset.ready = 'true';
-    // Blendet das Posterbild aus.
+    // Blendet Posterbild und Ladeanzeige aus.
     document.documentElement.classList.add('is-ready');
+    loader.done();
     // performance.now() zählt ab dem Start der Seite.
     requestAnimationFrame(() => onFirstRender && onFirstRender(performance.now()));
+  } else {
+    loader.done();
   }
 
   data.feed.start();

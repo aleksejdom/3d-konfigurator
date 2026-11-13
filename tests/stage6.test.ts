@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { updateClips } from '../src/core/stage.js';
+import { applyState, lightDefaults, lightProps, readProp, syncLights, updateClips } from '../src/core/stage.js';
+import { renderLoader } from '../src/export/page.js';
 import { bindComponents } from '../src/core/components.js';
 import { evaluate } from '../src/core/timeline.js';
 import { buildExport, buildOfflineAssets } from '../src/export/exporter.js';
@@ -11,7 +12,7 @@ describe('Projektformat', () => {
   it('öffnet Projekte der Version 5 mit Standardwerten für Umgebung, Poster und reduzierte Bewegung', () => {
     const old = { ...createProject(), formatVersion: 5, settings: { background: '#101010', scrollSmoothing: 0.2 } } as Record<string, unknown>;
     const project = migrateProject(old);
-    expect(project.formatVersion).toBe(7);
+    expect(project.formatVersion).toBe(8);
     expect(project.settings.background).toBe('#101010');
     expect(project.settings.environment).toEqual({ file: null, showBackground: false, rotation: 0, backgroundIntensity: 1, backgroundBlur: 0 });
     expect(project.settings.poster).toBeNull();
@@ -140,5 +141,54 @@ describe('Animationen je Abschnitt', () => {
     updateClips(stage, project, 1.5, 0);
     updateClips(stage, project, 2.5, 0);
     expect(stage.root.position.x).toBe(0);
+  });
+});
+
+describe('Zusätzliche Lichter', () => {
+  const stage = { scene: new THREE.Scene(), lights: new Map(), camera: new THREE.PerspectiveCamera(), target: new THREE.Vector3(), params: {}, nodes: new Map(), bounds: new THREE.Sphere(new THREE.Vector3(0, 1, 0), 2) } as never as Parameters<typeof syncLights>[0];
+  const project = createProject();
+  project.lights = [
+    { id: 'a', name: 'Spot', type: 'spot' },
+    { id: 'b', name: 'Fläche', type: 'area' },
+  ];
+
+  it('legt Lichter an, überträgt Werte aus der Timeline und liest sie zurück', () => {
+    syncLights(stage, project);
+    applyState(stage, { 'light:a.position': [1, 2, 3], 'light:a.target': [0, 1, 0], 'light:a.color': '#ff0000', 'light:a.intensity': 5, 'light:a.angle': 60, 'light:b.width': 2 });
+    const spot = stage.lights.get('a');
+    expect(spot.isSpotLight).toBe(true);
+    expect(spot.target.position.toArray()).toEqual([0, 1, 0]);
+    expect(spot.angle).toBeCloseTo(Math.PI / 6);
+    expect(readProp(stage, 'light:a.angle')).toBeCloseTo(60);
+    expect(readProp(stage, 'light:a.color')).toBe('#ff0000');
+    expect(stage.lights.get('b').width).toBe(2);
+  });
+
+  it('entfernt gelöschte Lichter und passt Ausgangswerte der Modellgröße an', () => {
+    project.lights = [project.lights[1]];
+    syncLights(stage, project);
+    expect([...stage.lights.keys()]).toEqual(['b']);
+    expect(lightDefaults(stage, 'spot').target).toEqual([0, 1, 0]);
+    expect(lightProps({ id: 'x', type: 'point' })).toEqual(['light:x.position', 'light:x.color', 'light:x.intensity', 'light:x.distance']);
+  });
+
+  it('lässt sich pro Abschnitt merken', () => {
+    project.base['light:b.intensity'] = 10;
+    project.keyframes = [{ id: 'k', sectionId: project.sections[1].id, t: 0, values: { 'light:b.intensity': { value: 30, scope: 'inherit' } } }];
+    expect(evaluate(project, 0)['light:b.intensity']).toBe(10);
+    expect(evaluate(project, 1)['light:b.intensity']).toBe(30);
+  });
+});
+
+describe('Ladeanzeige', () => {
+  it('steht nur in der Seite, wenn es ein Modell gibt und sie eingeschaltet ist', () => {
+    const project = createProject();
+    expect(renderLoader(project)).toBe('');
+    project.model.file = 'a.glb';
+    expect(renderLoader(project)).toContain('class="loader loader-ring" role="progressbar"');
+    project.settings.loader = 'none';
+    expect(renderLoader(project)).toBe('');
+    project.settings.loader = 'bar';
+    expect(buildExport(project, 'vanilla', {}).files['index.html']).toContain('loader-bar');
   });
 });

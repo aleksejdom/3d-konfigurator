@@ -27,7 +27,7 @@ export const resolvedTree = (project: Project, section: Section) => resolveSecti
 export const isContainer = (type: ComponentType) => (CONTAINER_TYPES as string[]).includes(type);
 
 /** Diese Werte gehören bei einer Instanz zur Instanz selbst, alles andere zur Vorlage. */
-export const INSTANCE_KEYS: (keyof ComponentStyle)[] = ['x', 'y', 'visible'];
+export const INSTANCE_KEYS: (keyof ComponentStyle)[] = ['x', 'y', 'anchorX', 'anchorY', 'visible'];
 
 export interface Located {
   /** Die Komponente im Projekt. Bei Kindern einer Instanz: das Element der Vorlage. */
@@ -150,6 +150,22 @@ export function setStyle(id: string, patch: ComponentStyle, breakpoint: Breakpoi
   }, key);
 }
 
+/** Setzt Gestaltungswerte mehrerer Komponenten in einem Schritt (ein Undo-Schritt). */
+export function setStyles(changes: { id: string; patch: ComponentStyle }[], breakpoint: Breakpoint) {
+  update((project) => {
+    for (const { id, patch } of changes) {
+      const located = locate(project, id);
+      if (!located) continue;
+      for (const [name, value] of Object.entries(patch) as [keyof ComponentStyle, never][]) {
+        const owner = styleOwner(located, name);
+        const target = breakpoint === 'desktop' ? owner.style : (owner.overrides[breakpoint] ??= {});
+        if (value === undefined) delete target[name];
+        else target[name] = value;
+      }
+    }
+  });
+}
+
 export function setAnimation(id: string, patch: Partial<ComponentAnimation>, key?: string) {
   update((project) => {
     const located = locate(project, id);
@@ -161,8 +177,8 @@ export interface AddTarget {
   sectionId: string;
   /** In diese Karte/Infobox legen */
   containerId?: string;
-  /** Frei über dem Canvas an dieser Stelle (Prozent) */
-  free?: { x: number; y: number };
+  /** Frei über dem Canvas: Anker und Abstand zum Anker in px */
+  free?: Pick<ComponentStyle, 'anchorX' | 'anchorY' | 'x' | 'y'>;
 }
 
 /** Fügt eine Komponente oder die Instanz einer Vorlage ein und wählt sie aus. */
@@ -206,8 +222,7 @@ export function addComponent(spec: { type: Exclude<ComponentType, 'instance'> } 
     if (target.free) {
       const first = project.sections.indexOf(section) === 0;
       created.placement = 'free';
-      created.style.x = Math.round(target.free.x);
-      created.style.y = Math.round(target.free.y);
+      Object.assign(created.style, target.free);
       created.animation = { type: 'fade', in: first ? [0, 0] : [0, 0.15], out: [0.85, 1] };
     }
     section.components.push(created);
@@ -272,8 +287,10 @@ export function setPlacement(id: string, placement: Component['placement']) {
       located.node.anchorMode ??= 'always';
     }
     if (placement === 'free') {
-      located.node.style.x ??= 50;
-      located.node.style.y ??= 40;
+      // Neu frei platziert: mittig im Inhaltsbereich.
+      if (located.node.style.x === undefined && located.node.style.y === undefined) {
+        Object.assign(located.node.style, { anchorX: 'center', anchorY: 'center', x: 0, y: 0 });
+      }
     }
   });
 }

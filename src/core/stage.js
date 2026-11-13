@@ -7,6 +7,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 export function createStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -40,6 +41,9 @@ export function createStage(canvas) {
     /** Blickziel der Kamera */
     target: new THREE.Vector3(),
     keyLight,
+    /** Zusätzliche Lichter des Projekts: ID -> THREE.Light, siehe syncLights() */
+    /** @type {Map<string, any>} */
+    lights: new Map(),
     model,
     /** Stabile ID -> Object3D */
     nodes: new Map([['model', model]]),
@@ -60,6 +64,87 @@ export function createStage(canvas) {
     /** Kameraausschnitt des aktuellen Breakpoints */
     framing: { zoom: 1, shiftX: 0, shiftY: 0 },
   };
+}
+
+// ---------- Zusätzliche Lichter ----------
+
+export const LIGHT_FIELDS = {
+  spot: ['position', 'target', 'color', 'intensity', 'angle', 'penumbra', 'distance'],
+  area: ['position', 'target', 'color', 'intensity', 'width', 'height'],
+  point: ['position', 'color', 'intensity', 'distance'],
+};
+
+export const lightProps = (light) => LIGHT_FIELDS[light.type].map((field) => `light:${light.id}.${field}`);
+
+/**
+ * Ausgangswerte eines neuen Lichts, passend zur Größe des Modells.
+ * @param {'spot' | 'area' | 'point'} type
+ * @returns {Record<string, any>} Feld -> Wert
+ */
+export function lightDefaults(stage, type) {
+  const { center, radius } = stage.bounds;
+  // Jede Art beginnt an einer anderen Stelle, damit neue Lichter nicht aufeinander liegen.
+  const offset = { spot: [0.9, 0.9, 0.9], area: [-1, 0.5, 0.8], point: [0, 0.9, 1.1] }[type];
+  const position = center.toArray().map((n, i) => Math.round((n + offset[i] * radius) * 100) / 100);
+  const common = { position, color: '#ffffff' };
+  if (type === 'spot') return { ...common, target: center.toArray(), intensity: Math.round(20 * radius * radius * 10) / 10, angle: 45, penumbra: 0.4, distance: 0 };
+  if (type === 'area') return { ...common, target: center.toArray(), intensity: 12, width: Math.round(radius * 100) / 100, height: Math.round(radius * 100) / 100 };
+  return { ...common, intensity: Math.round(12 * radius * radius * 10) / 10, distance: 0 };
+}
+
+let areaLightsReady = false;
+
+/**
+ * Legt die Lichter des Projekts in der Szene an und entfernt gelöschte.
+ * Ihre Werte kommen danach über applyState() aus der Timeline.
+ * @param {import('./types').Project} project
+ */
+export function syncLights(stage, project) {
+  const wanted = new Map((project.lights || []).map((light) => [light.id, light]));
+  for (const [id, object] of stage.lights) {
+    if (wanted.has(id) && object.userData.type === wanted.get(id).type) continue;
+    stage.scene.remove(object);
+    if (object.target && object.target.parent) stage.scene.remove(object.target);
+    object.dispose?.();
+    stage.lights.delete(id);
+  }
+  for (const [id, light] of wanted) {
+    if (stage.lights.has(id)) continue;
+    let object;
+    if (light.type === 'spot') {
+      object = new THREE.SpotLight(0xffffff, 1);
+      stage.scene.add(object.target);
+    } else if (light.type === 'area') {
+      if (!areaLightsReady) {
+        RectAreaLightUniformsLib.init();
+        areaLightsReady = true;
+      }
+      object = new THREE.RectAreaLight(0xffffff, 1, 1, 1);
+    } else {
+      object = new THREE.PointLight(0xffffff, 1);
+    }
+    object.userData = { type: light.type, lightId: id, target: new THREE.Vector3() };
+    stage.scene.add(object);
+    stage.lights.set(id, object);
+  }
+}
+
+function applyLightField(light, field, value) {
+  if (field === 'position') light.position.fromArray(value);
+  else if (field === 'target') {
+    light.userData.target.fromArray(value);
+    if (light.target) light.target.position.fromArray(value);
+  } else if (field === 'color') light.color.set(value);
+  else if (field === 'angle') light.angle = (value * Math.PI) / 360;
+  else light[field] = value; // intensity, penumbra, distance, width, height
+}
+
+function readLightField(light, field) {
+  if (field === 'position') return light.position.toArray();
+  if (field === 'target') return light.userData.target.toArray();
+  if (field === 'color') return '#' + light.color.getHexString();
+  if (field === 'angle') return (light.angle * 360) / Math.PI;
+  return light[field];
 }
 
 export function resizeStage(stage, width, height) {
@@ -281,6 +366,11 @@ export function applyState(stage, state) {
       stage.params[prop] = value;
       continue;
     }
+    if (target.startsWith('light:')) {
+      const light = stage.lights.get(target.slice(6));
+      if (light) applyLightField(light, field, value);
+      continue;
+    }
     const object = resolveTarget(stage, target);
     if (!object) continue;
 
@@ -289,6 +379,10 @@ export function applyState(stage, state) {
     else if (field === 'rotation') object.rotation.set(value[0], value[1], value[2]);
     else if (field === 'color') object.color.set(value);
     else object[field] = value; // fov, intensity
+  }
+  // Flächenlichter zeigen auf ihr Blickziel.
+  for (const light of stage.lights.values()) {
+    if (light.userData.type === 'area') light.lookAt(light.userData.target);
   }
   stage.camera.lookAt(stage.target);
   stage.camera.updateProjectionMatrix();
@@ -299,6 +393,10 @@ export function readProp(stage, prop) {
   const [target, field] = splitProp(prop);
   if (target === 'ambient') return stage.scene.environmentIntensity;
   if (target.startsWith('clip:')) return stage.params[prop];
+  if (target.startsWith('light:')) {
+    const light = stage.lights.get(target.slice(6));
+    return light ? readLightField(light, field) : undefined;
+  }
   if (target.startsWith('lookAt:') || target.startsWith('option:')) {
     const value = stage.params[prop];
     // Mitten in einem Übergang zwischen zwei Zielen gilt das mit dem größeren Gewicht.

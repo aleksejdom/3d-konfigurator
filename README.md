@@ -43,7 +43,7 @@ npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
 ## Arbeitsablauf im Editor
 
 1. Modell importieren (oder „Beispielmodell laden“).
-2. Am Start Kamera, Licht und Modell einstellen, dann **Merken**.
+2. Am Start Kamera, Licht (Bereich „Licht“) und Modell einstellen, dann **Merken**.
 3. In der Timeline zur nächsten Stelle gehen, Szene anpassen, wieder **Merken**. Pro Gruppe wählst du,
    ob der Wert nur in diesem Abschnitt gilt oder in die Folgeabschnitte übernommen wird.
 4. Timeline ziehen oder Mausrad über der Timeline: Die Übergänge laufen vor und zurück.
@@ -65,12 +65,21 @@ npm run verify:exports  # schreibt beide Exporte nach .verify/ und baut sie
     ohne Installation: `index.html` doppelklicken oder den Ordner hochladen. Der Astro-Export braucht `npm install`
     und `npm run dev`.
 
-Links wählst du über die Symbolleiste den Bereich (Seite, Elemente, Modell, Hotspots, Varianten, Daten). Bereiche
+Links wählst du über die Symbolleiste den Bereich (Seite, Elemente, Modell, Licht, Hotspots, Varianten, Daten). Bereiche
 lassen sich über ihren Titel auf- und zuklappen; die App merkt sich das.
 
+- **Seite:** Abschnitte, Seitenbreite und Inhaltsbereich (Inner-Wrapper), Schriften. Die Textspalte und links oder rechts
+  verankerte Elemente liegen am Rand des Inhaltsbereichs.
+- **Frei platzierte Elemente** hängen an einem Anker und haben feste Abstände in px. Mehrere Elemente wählst du mit
+  Umschalt-Klick; rechts erscheint „Ausrichten“ (an der Auswahl oder am Inhaltsbereich, verteilen mit festem Abstand).
+- **Text:** rechts unter „Text“ und „Abstände“ stellst du Schrift, Größe, Stärke, Zeilenabstand, Padding und Margin ein.
+- **Licht:** Hauptlicht, Umgebungslicht und zusätzliche Spot-, Flächen- und Punktlichter. Auswählen, mit dem Anfasser
+  verschieben, mit „Merken“ pro Abschnitt festhalten.
+- **Timeline:** Punkt anklicken, Strg+C, an eine andere Stelle gehen, Strg+V.
+
 Texte stehen fest im Bild und wechseln an der Abschnittsgrenze. Unter „Seite“ rechts lässt sich das auf mitscrollende
-Texte umstellen. Animationen aus Blender stellst du rechts unter „Abschnitt“ ein: in Schleife, einmal oder mit dem
-Scrollen.
+Texte umstellen; dort wählst du auch die Ladeanzeige. Animationen aus Blender stellst du rechts unter „Abschnitt“ ein:
+in Schleife, einmal oder mit dem Scrollen.
 
 ## Live-Daten ausprobieren
 

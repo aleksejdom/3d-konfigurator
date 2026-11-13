@@ -1,22 +1,23 @@
 import { levelTints, resolveFields, syncDataElements, testData } from '../core/data.js';
 import { dominant, optionProp } from '../core/actions.js';
 import { applyOptions, syncOptionElements, timelineWeights } from '../core/configurator.js';
-import { Box, MapPin, Monitor, Move3d, Rotate3d, Scaling, Smartphone, Tablet } from 'lucide-react';
+import { Box, MapPin, Monitor, Move3d, Rotate3d, Ruler, Scaling, Smartphone, Tablet } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { RectAreaLightHelper } from 'three/addons/helpers/RectAreaLightHelper.js';
 import { bindComponents, resolveFraming } from '../core/components.js';
-import { applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, readProp, renderStage, resizeStage, updateClips } from '../core/stage.js';
+import { applyEnvironment, applyFraming, applyState, createStage, loadEnvironment, readProp, renderStage, resizeStage, syncLights, updateClips } from '../core/stage.js';
 import { splitPos } from '../core/timeline.js';
 import type { Breakpoint, Scope, Value } from '../core/types';
 import { positionHotspots } from '../core/interaction.js';
-import { renderCss, renderFreeLayer, renderHotspotLayer, renderSections } from '../export/page.js';
-import { addComponent, removeComponent, setStyle } from './components';
+import { renderCss, renderFontFaces, renderFreeLayer, renderHotspotLayer, renderSections } from '../export/page.js';
+import { addComponent, effectiveStyle, locate, removeComponent, setStyle, setStyles } from './components';
 import { addHotspot } from './interactions';
 import { SCOPE_LABELS, lastScope, posLabel, propGroups } from './labels';
 import { currentState, editor, sameValue } from './stage';
-import { discardDraft, importModel, loadSampleModel, merken, notify, setDraft, useEditor } from './store';
+import { discardDraft, importModel, loadSampleModel, merken, notify, selectComponent, selectedComponents, setDraft, setSceneValue, useEditor } from './store';
 
 type GizmoMode = 'translate' | 'rotate' | 'scale';
 const MODE_FIELD: Record<GizmoMode, string> = { translate: 'position', rotate: 'rotation', scale: 'scale' };
@@ -30,12 +31,58 @@ const DEVICE_LABEL: Record<Breakpoint, string> = { desktop: 'Desktop', tablet: '
 
 export const DRAG_TYPE = 'application/x-component';
 
+/**
+ * Hilfsfigur eines Lichts im Editor: Markierung am Ort des Lichts, Linie zum Blickziel und
+ * bei Spotlichtern der Lichtkreis am Ziel. update() folgt den aktuellen Werten des Lichts.
+ */
+function lightHelper(light: THREE.Light & { angle?: number }, color: number, size: number) {
+  const material = new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.9 });
+  const marker = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.OctahedronGeometry(size, 0)), material);
+  const ray = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), material);
+  const circle = new THREE.LineLoop(
+    new THREE.BufferGeometry().setFromPoints(Array.from({ length: 48 }, (_, i) => new THREE.Vector3(Math.cos((i / 48) * Math.PI * 2), Math.sin((i / 48) * Math.PI * 2), 0))),
+    material,
+  );
+  const group = new THREE.Group() as THREE.Group & { update: () => void; dispose: () => void };
+  const type = light.userData.type as string;
+  group.add(marker);
+  if (type !== 'point') group.add(ray);
+  if (type === 'spot') group.add(circle);
+  group.update = () => {
+    const target = light.userData.target as THREE.Vector3;
+    marker.position.copy(light.position);
+    ray.geometry.setFromPoints([light.position, target]);
+    circle.position.copy(target);
+    circle.lookAt(light.position);
+    circle.scale.setScalar(Math.max(1e-3, light.position.distanceTo(target) * Math.tan(light.angle ?? 0)));
+  };
+  group.dispose = () => {
+    material.dispose();
+    [marker, ray, circle].forEach((object) => object.geometry.dispose());
+  };
+  group.renderOrder = 10;
+  return group;
+}
+
+/**
+ * Passt das CSS der Seite an den Rahmen im Editor an, damit er dasselbe zeigt wie Vorschau und Export:
+ * Der Rahmen selbst ist die Seite (.site), und rem zählt wie im Browser 16 px, nicht die Schriftgröße des Editors.
+ */
+function editorCss(css: string): string {
+  return css
+    .replace(/(^|\n)\.site(?=[ {*])/g, '$1:scope')
+    .replace(/(\d*\.?\d+)rem\b/g, (_, n: string) => `${Math.round(parseFloat(n) * 16 * 100) / 100}px`);
+}
+
 export function Viewport() {
   const outerRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const modeRef = useRef<GizmoMode>('translate');
+  /** Eigenschaft, die der Anfasser gerade bewegt, wenn er an einem Licht hängt */
+  const gizmoProp = useRef<string | null>(null);
+  const lightHelpers = useRef(new THREE.Group());
   const [mode, setMode] = useState<GizmoMode>('translate');
   const [merkenOpen, setMerkenOpen] = useState(false);
   const [environmentVersion, setEnvironmentVersion] = useState(0);
@@ -56,9 +103,14 @@ export function Viewport() {
 
   // Gerätefläche: Auf Desktop füllt sie den Viewport, die Seite wird aber mindestens 1280 px breit
   // gerechnet und verkleinert dargestellt, damit der Desktop-Breakpoint auch in einem kleinen Fenster stimmt.
-  const deviceWidth = breakpoint === 'desktop' ? available.width : Math.min(available.width, DEVICE_WIDTH[breakpoint]);
-  const logicalWidth = breakpoint === 'desktop' ? Math.max(available.width, DEVICE_WIDTH.desktop) : DEVICE_WIDTH[breakpoint];
-  const scale = deviceWidth / logicalWidth;
+  // Ist eine Seitenbreite gesetzt und schmaler, zeigt die Fläche genau diese Breite.
+  const pageWidth = project.settings.layout.pageWidth || Infinity;
+  const logicalWidth = Math.min(pageWidth, breakpoint === 'desktop' ? Math.max(available.width, DEVICE_WIDTH.desktop) : DEVICE_WIDTH[breakpoint]);
+  const scale = Math.min(1, available.width / logicalWidth);
+  const deviceWidth = logicalWidth * scale;
+  const guides = useEditor((s) => s.guides);
+  const selectedLight = useEditor((s) => s.selectedLight);
+  const lightHandle = useEditor((s) => s.lightHandle);
 
   useEffect(() => {
     const outer = outerRef.current!;
@@ -76,6 +128,7 @@ export function Viewport() {
     const gizmo = new TransformControls(stage.camera, canvas);
     const gizmoHelper = gizmo.getHelper();
     stage.scene.add(gizmoHelper);
+    stage.scene.add(lightHelpers.current);
     editor.stage = stage;
     editor.orbit = orbit;
     editor.gizmo = gizmo;
@@ -97,6 +150,11 @@ export function Viewport() {
       orbit.enabled = !(event as unknown as { value: boolean }).value;
     });
     gizmo.addEventListener('objectChange', () => {
+      // Hängt der Anfasser an einem Licht oder seinem Blickziel, wandert dessen Wert mit.
+      if (gizmoProp.current) {
+        setSceneValue(gizmoProp.current, gizmo.object!.position.toArray() as Value);
+        return;
+      }
       const id = useEditor.getState().selectedNode;
       if (!id) return;
       const prop = `node:${id}.${MODE_FIELD[modeRef.current]}`;
@@ -124,7 +182,7 @@ export function Viewport() {
         }
         return;
       }
-      useEditor.setState({ selectedNode: hit ? (hit.object.userData.nodeId ?? null) : null, selectedComponent: null });
+      useEditor.setState({ selectedNode: hit ? (hit.object.userData.nodeId ?? null) : null, selectedComponent: null, selectedLight: null });
     };
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointerup', onUp);
@@ -143,16 +201,19 @@ export function Viewport() {
       if (frame++ % 30 === 0) {
         const visible = gizmoHelper.visible;
         gizmoHelper.visible = false;
+        lightHelpers.current.visible = false;
         renderStage(stage);
         const calls = stage.renderer.info.render.calls;
         if (calls !== useEditor.getState().drawCalls) useEditor.setState({ drawCalls: calls });
         gizmoHelper.visible = visible;
+        lightHelpers.current.visible = true;
       }
       // Animationen des Modells laufen wie auf der Seite: pro Abschnitt in Schleife, einmal oder mit dem Scrollen.
       const state = useEditor.getState();
       const now = performance.now();
       updateClips(stage, state.project, state.pos, Math.min(0.1, (now - lastFrame) / 1000));
       lastFrame = now;
+      for (const helper of lightHelpers.current.children) (helper as unknown as { update?: () => void }).update?.();
       renderStage(stage);
       // Hotspot-Punkte und daran verankerte Komponenten folgen ihrem Bauteil.
       if (frameRef.current && state.project.hotspots.length > 0) {
@@ -183,6 +244,7 @@ export function Viewport() {
     if (!stage || !orbit) return;
     applyEnvironment(stage, project.settings);
     applyFraming(stage, resolveFraming(project, breakpoint));
+    syncLights(stage, project);
     applyState(stage, currentState(project, pos, draft));
 
     // Varianten, Materialien und Sichtbarkeit so zeigen, wie die Timeline sie an dieser Stelle wählt.
@@ -206,23 +268,77 @@ export function Viewport() {
     };
   }, [environmentFile, environmentUrl]);
 
-  // Anfasser an das ausgewählte Bauteil hängen.
+  // Hilfsfiguren für die Lichter: zeigen Ort, Richtung und Kegel bzw. Fläche. Nur im Editor.
+  const lightIds = project.lights.map((light) => light.id + light.type).join(' ');
+  const targetProxy = useRef(new THREE.Object3D());
+  useEffect(() => {
+    const stage = editor.stage;
+    if (!stage) return;
+    syncLights(stage, project);
+    const group = lightHelpers.current;
+    for (const helper of [...group.children]) {
+      group.remove(helper);
+      (helper as unknown as { dispose?: () => void }).dispose?.();
+    }
+    const size = stage.bounds.radius * 0.12;
+    for (const [id, light] of stage.lights) {
+      const active = id === selectedLight;
+      const color = active ? 0xf5a623 : 0x8b9099;
+      group.add(lightHelper(light, color, size));
+      if (light.userData.type === 'area') {
+        const helper = new RectAreaLightHelper(light, color);
+        // Der Helfer von Three.js erwartet, am Licht zu hängen; hier liegt er in der Gruppe und folgt dessen Matrix.
+        helper.matrix = light.matrixWorld;
+        helper.matrixAutoUpdate = false;
+        group.add(helper);
+      }
+    }
+    if (selectedLight === 'keyLight') group.add(new THREE.DirectionalLightHelper(stage.keyLight, size * 2, 0xf5a623));
+    applyState(stage, currentState(project, pos, draft));
+  }, [lightIds, selectedLight, modelVersion]);
+
+  // Anfasser an das ausgewählte Bauteil oder Licht hängen.
   useEffect(() => {
     const { stage, gizmo } = editor;
     if (!stage || !gizmo) return;
     modeRef.current = mode;
+    gizmoProp.current = null;
+    if (selectedLight) {
+      const light = selectedLight === 'keyLight' ? stage.keyLight : stage.lights.get(selectedLight);
+      const prefix = selectedLight === 'keyLight' ? 'keyLight' : `light:${selectedLight}`;
+      if (!light) {
+        gizmo.detach();
+        return;
+      }
+      gizmo.setMode('translate');
+      if (lightHandle === 'target' && selectedLight !== 'keyLight' && light.userData.type !== 'point') {
+        // Das Blickziel hat kein eigenes Objekt in der Szene; ein unsichtbarer Stellvertreter nimmt den Anfasser auf.
+        const proxy = targetProxy.current;
+        if (!proxy.parent) stage.scene.add(proxy);
+        proxy.position.copy(light.userData.target);
+        gizmo.attach(proxy);
+        gizmoProp.current = `${prefix}.target`;
+      } else {
+        gizmo.attach(light);
+        gizmoProp.current = `${prefix}.position`;
+      }
+      return;
+    }
     gizmo.setMode(mode);
     const object = selectedNode ? stage.nodes.get(selectedNode) : undefined;
     if (object) gizmo.attach(object);
     else gizmo.detach();
-  }, [selectedNode, mode, modelVersion]);
+  }, [selectedNode, selectedLight, lightHandle, lightIds, mode, modelVersion]);
 
   // ---------- Seite über dem Canvas ----------
 
   const { index } = splitPos(project, pos);
   const section = project.sections[index];
 
-  const css = useMemo(() => `@scope (.page-frame) {\n${renderCss(project)}\n}`, [project]);
+  const css = useMemo(
+    () => `${renderFontFaces(project, (file: string) => assets[file]?.url ?? '')}@scope (.page-frame) {\n${editorCss(renderCss(project))}\n}`,
+    [project, assets],
+  );
   const html = useMemo(() => {
     // Bei festen Texten auch den nächsten Abschnitt ausgeben: Sein Text gleitet am Ende des aktuellen herein.
     const only = project.settings.textMode !== 'flow' ? [index, index + 1] : index;
@@ -263,31 +379,48 @@ export function Viewport() {
     const element = (event.target as HTMLElement).closest<HTMLElement>('[data-c]');
     if (!element || event.button !== 0) return;
     event.preventDefault();
-    const frame = frameRef.current!.getBoundingClientRect();
-    // Am Hotspot verankerte Komponenten bekommen ihre Position vom Bauteil und lassen sich nicht ziehen.
+    const frame = frameRef.current!;
     const root = element.closest<HTMLElement>('.free-layer > .c:not(.anchored)');
-    const rootRect = root?.getBoundingClientRect();
+    const additive = event.shiftKey;
     const start = { x: event.clientX, y: event.clientY };
-    let position: { x: number; y: number } | null = null;
+    let delta: { x: number; y: number } | null = null;
+    // Gezogen werden alle ausgewählten frei platzierten Komponenten, wenn die angeklickte dazugehört.
+    const before = selectedComponents();
+    const ids = root && before.includes(root.dataset.c!) ? before : root ? [root.dataset.c!] : [];
+    const moving = ids
+      .map((id) => frame.querySelector<HTMLElement>(`.free-layer > .c:not(.anchored)[data-c="${CSS.escape(id)}"]`))
+      .filter((el): el is HTMLElement => el !== null);
 
     const onMove = (e: PointerEvent) => {
-      if (!position && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return;
-      if (!root || !rootRect) return;
-      position = {
-        x: Math.round(((rootRect.left + e.clientX - start.x - frame.left) / frame.width) * 1000) / 10,
-        y: Math.round(((rootRect.top + e.clientY - start.y - frame.top) / frame.height) * 1000) / 10,
-      };
-      root.style.left = position.x + '%';
-      root.style.top = position.y + '%';
+      if (!delta && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return;
+      if (moving.length === 0 || additive) return;
+      // Abstände sind px der Seite; die Darstellung im Editor kann verkleinert sein.
+      delta = { x: Math.round((e.clientX - start.x) / scale), y: Math.round((e.clientY - start.y) / scale) };
+      for (const el of moving) {
+        el.style.setProperty('--dx', delta.x + 'px');
+        el.style.setProperty('--dy', delta.y + 'px');
+      }
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      if (position && root) {
-        setStyle(root.dataset.c!, position, useEditor.getState().breakpoint);
-        useEditor.setState({ selectedComponent: root.dataset.c! });
+      for (const el of moving) {
+        el.style.removeProperty('--dx');
+        el.style.removeProperty('--dy');
+      }
+      if (delta && moving.length > 0) {
+        const { project, breakpoint } = useEditor.getState();
+        const moved = delta;
+        setStyles(
+          moving.map((el) => {
+            const style = effectiveStyle(locate(project, el.dataset.c!)!.node, breakpoint);
+            return { id: el.dataset.c!, patch: { x: (style.x ?? 0) + moved.x, y: (style.y ?? 0) + moved.y } };
+          }),
+          breakpoint,
+        );
+        if (!before.includes(root!.dataset.c!)) selectComponent(root!.dataset.c!);
       } else {
-        useEditor.setState({ selectedComponent: element.dataset.c! });
+        selectComponent(element.dataset.c!, additive);
       }
     };
     window.addEventListener('pointermove', onMove);
@@ -345,10 +478,23 @@ export function Viewport() {
       addComponent(spec, { sectionId: section.id });
       return;
     }
+    // Frei ablegen: Der Anker richtet sich nach dem Drittel des Bildes, der Abstand ist in px der Seite.
     const rect = frame.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / scale;
+    const y = (event.clientY - rect.top) / scale;
+    const width = rect.width / scale;
+    const height = rect.height / scale;
+    const { innerWidth, padding } = project.settings.layout;
+    const wrap = Math.max(padding, (width - innerWidth) / 2);
+    const anchorX = x < width / 3 ? 'left' : x > (width * 2) / 3 ? 'right' : 'center';
     addComponent(spec, {
       sectionId: section.id,
-      free: { x: ((event.clientX - rect.left) / rect.width) * 100, y: ((event.clientY - rect.top) / rect.height) * 100 },
+      free: {
+        anchorX,
+        anchorY: 'center',
+        x: Math.round(anchorX === 'left' ? x - wrap : anchorX === 'center' ? x - width / 2 : x - (width - wrap)),
+        y: Math.round(y - height / 2),
+      },
     });
   };
 
@@ -374,6 +520,15 @@ export function Viewport() {
           onClick={(event) => event.preventDefault()}
           dangerouslySetInnerHTML={{ __html: html }}
         />
+        {guides && (
+          <div
+            className="layout-guides"
+            style={{
+              ['--guide' as string]: `${Math.max(project.settings.layout.padding, (logicalWidth - project.settings.layout.innerWidth) / 2) * scale}px`,
+            }}
+            aria-hidden
+          />
+        )}
         <SelectionBox frameRef={frameRef} hostRef={hostRef} scale={scale} html={html} />
       </div>
 
@@ -414,6 +569,15 @@ export function Viewport() {
           Hotspot setzen
         </button>
         <span className="tool-gap" />
+        <button
+          className={guides ? 'active' : ''}
+          onClick={() => useEditor.setState({ guides: !guides })}
+          title="Hilfslinien des Inhaltsbereichs (Inner-Wrapper) zeigen"
+          aria-label="Hilfslinien"
+          aria-pressed={guides}
+        >
+          <Ruler size={16} aria-hidden />
+        </button>
         {(Object.keys(DEVICE_LABEL) as Breakpoint[]).map((b) => (
           <button
             key={b}
@@ -464,7 +628,17 @@ function SelectionBox(props: {
   html: string;
 }) {
   const selected = useEditor((s) => s.selectedComponent);
+  const also = useEditor((s) => s.alsoSelected);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  // Weitere ausgewählte Komponenten bekommen einen gestrichelten Rahmen.
+  useEffect(() => {
+    const frame = props.frameRef.current;
+    if (!frame) return;
+    const elements = also.map((id) => frame.querySelector<HTMLElement>(`[data-c="${CSS.escape(id)}"]`)).filter((el) => el !== null);
+    elements.forEach((el) => el.classList.add('is-also-selected'));
+    return () => elements.forEach((el) => el.classList.remove('is-also-selected'));
+  }, [also, props.html, props.frameRef]);
   const elementRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -526,7 +700,7 @@ function SelectionBox(props: {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' || !selected) return;
       if ((event.target as HTMLElement).closest('input, textarea, select')) return;
-      removeComponent(selected);
+      selectedComponents().forEach(removeComponent);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

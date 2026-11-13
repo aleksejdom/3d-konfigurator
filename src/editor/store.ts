@@ -47,6 +47,16 @@ interface EditorState {
   selectedSection: string | null;
   /** Ausgewählte HTML-Komponente. Kinder einer Instanz: "<Instanz>--<Vorlagen-Element>" */
   selectedComponent: string | null;
+  /** Weitere mit Umschalt-Klick ausgewählte Komponenten (für Ausrichten und gemeinsames Verschieben) */
+  alsoSelected: string[];
+  /** Ausgewähltes Licht: "keyLight" oder die ID eines zusätzlichen Lichts */
+  selectedLight: string | null;
+  /** Was der Anfasser am ausgewählten Licht bewegt */
+  lightHandle: 'position' | 'target';
+  /** Kopierter Timeline-Punkt (Strg+C) */
+  copiedKeyframe: Keyframe['values'] | null;
+  /** Hilfslinien für Seitenbreite und Inhaltsbereich im Viewport */
+  guides: boolean;
   selectedHotspot: string | null;
   selectedGroup: string | null;
   selectedField: string | null;
@@ -85,6 +95,11 @@ export const useEditor = create<EditorState>(() => ({
   selectedKeyframe: null,
   selectedSection: initialProject.sections[0].id,
   selectedComponent: null,
+  alsoSelected: [],
+  selectedLight: null,
+  lightHandle: 'position',
+  copiedKeyframe: null,
+  guides: true,
   selectedHotspot: null,
   selectedGroup: null,
   selectedField: null,
@@ -141,6 +156,7 @@ function fixSelection(project: Project) {
     selectedComponent:
       componentRoot && JSON.stringify(project.sections).includes(`"id":"${componentRoot}"`) ? state.selectedComponent : null,
     selectedKeyframe: project.keyframes.some((k) => k.id === state.selectedKeyframe) ? state.selectedKeyframe : null,
+    selectedLight: state.selectedLight === 'keyLight' || project.lights.some((l) => l.id === state.selectedLight) ? state.selectedLight : null,
     selectedHotspot: project.hotspots.some((h) => h.id === state.selectedHotspot) ? state.selectedHotspot : null,
     selectedGroup: project.variantGroups.some((g) => g.id === state.selectedGroup) ? state.selectedGroup : null,
     selectedField: project.data.fields.some((f) => f.id === state.selectedField) ? state.selectedField : null,
@@ -180,6 +196,7 @@ export function setPos(pos: number) {
     selectedSection: sectionId,
     // Die Auswahl gehört zum sichtbaren Abschnitt.
     selectedComponent: sectionId === get().selectedSection ? get().selectedComponent : null,
+    alsoSelected: sectionId === get().selectedSection ? get().alsoSelected : [],
   });
 }
 
@@ -196,6 +213,65 @@ export function setDraft(patch: StateMap) {
 
 export function discardDraft() {
   set({ draft: {} });
+}
+
+/**
+ * Setzt einen Wert der Szene. Ist die Eigenschaft noch an keiner Stelle gemerkt, gilt der Wert sofort für die
+ * ganze Seite. Sonst wird er zur ungespeicherten Änderung an dieser Stelle und gilt nach „Merken“.
+ */
+export function setSceneValue(prop: string, value: Value) {
+  if (get().project.keyframes.some((keyframe) => prop in keyframe.values)) setDraft({ [prop]: value });
+  else update((project) => void (project.base[prop] = tidy(value)), 'scene-' + prop);
+}
+
+/** Alle ausgewählten Komponenten: die zuletzt angeklickte und die mit Umschalt-Klick dazugenommenen. */
+export function selectedComponents(state: Pick<EditorState, 'selectedComponent' | 'alsoSelected'> = get()): string[] {
+  if (!state.selectedComponent) return [];
+  return [state.selectedComponent, ...state.alsoSelected.filter((id) => id !== state.selectedComponent)];
+}
+
+/** Komponente auswählen. additive = Umschalt-Klick: zur Auswahl hinzufügen oder daraus entfernen. */
+export function selectComponent(id: string | null, additive = false) {
+  const state = get();
+  if (!id) return set({ selectedComponent: null, alsoSelected: [] });
+  if (!additive || !state.selectedComponent) return set({ selectedComponent: id, alsoSelected: [], selectedLight: null });
+  const all = selectedComponents(state);
+  if (all.includes(id)) {
+    const rest = all.filter((other) => other !== id);
+    set({ selectedComponent: rest[0] ?? null, alsoSelected: rest.slice(1) });
+  } else {
+    set({ selectedComponent: id, alsoSelected: all });
+  }
+}
+
+// ---------- Timeline-Punkte kopieren ----------
+
+export function copyKeyframe(id = get().selectedKeyframe) {
+  const keyframe = get().project.keyframes.find((k) => k.id === id);
+  if (!keyframe) return;
+  set({ copiedKeyframe: structuredClone(keyframe.values) });
+  notify('Punkt kopiert. Gehe in der Timeline an die gewünschte Stelle und füge ihn ein (Strg+V).');
+}
+
+/** Fügt den kopierten Punkt an der aktuellen Timeline-Position ein. Liegt dort schon ein Punkt, werden seine Werte ergänzt und überschrieben. */
+export function pasteKeyframe() {
+  const state = get();
+  const values = state.copiedKeyframe;
+  if (!values || state.project.sections.length === 0) return;
+  const { index, t } = splitPos(state.project, state.pos);
+  const sectionId = state.project.sections[index].id;
+  const roundedT = Math.round(t * 1000) / 1000;
+  let keyframeId = '';
+  update((project) => {
+    let keyframe = project.keyframes.find((k) => k.sectionId === sectionId && Math.abs(k.t - roundedT) < 0.005);
+    if (!keyframe) {
+      keyframe = { id: uid('kf'), sectionId, t: roundedT, values: {} };
+      project.keyframes.push(keyframe);
+    }
+    Object.assign(keyframe.values, structuredClone(values));
+    keyframeId = keyframe.id;
+  });
+  set({ draft: {}, selectedKeyframe: keyframeId });
 }
 
 // ---------- Merken ----------
@@ -308,6 +384,17 @@ export async function importImage(): Promise<string | null> {
   if (!file) return null;
   addAsset(file.name, file.data);
   return file.name;
+}
+
+/** Schriftdatei ins Projekt aufnehmen. Liefert die Auswahl-ID "font:<ID>". */
+export async function importFont(): Promise<string | null> {
+  const file = await pickFile(['woff2', 'woff', 'ttf', 'otf'], 'Schriftdatei');
+  if (!file) return null;
+  addAsset(file.name, file.data);
+  const id = uid('font');
+  const name = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
+  update((project) => void project.fonts.push({ id, name, file: file.name }));
+  return 'font:' + id;
 }
 
 /** HDRI (.hdr) oder Panoramabild als Umgebung wählen. */
@@ -545,7 +632,13 @@ export async function exportProject(target: 'vanilla' | 'astro') {
 // Eine ausgewählte Komponente und ein ausgewählter Hotspot schließen sich aus.
 useEditor.subscribe((state, previous) => {
   // Rechts wird immer nur eines bearbeitet: Komponente, Hotspot, Variantengruppe oder Datenfeld.
-  const keys = ['selectedComponent', 'selectedHotspot', 'selectedGroup', 'selectedField'] as const;
+  const keys = ['selectedComponent', 'selectedHotspot', 'selectedGroup', 'selectedField', 'selectedLight'] as const;
+  // Der Anfasser im Viewport hängt entweder an einem Bauteil oder an einem Licht.
+  if (state.selectedNode && state.selectedNode !== previous.selectedNode && state.selectedLight) return set({ selectedLight: null });
+  if (state.selectedLight && state.selectedLight !== previous.selectedLight && state.selectedNode) set({ selectedNode: null });
+  // Die Mehrfachauswahl endet, sobald etwas anderes ausgewählt wird.
+  const replaced = state.selectedComponent !== previous.selectedComponent && state.alsoSelected === previous.alsoSelected;
+  if (state.alsoSelected.length > 0 && (!state.selectedComponent || replaced)) return set({ alsoSelected: [] });
   const changed = keys.find((key) => state[key] && state[key] !== previous[key]);
   if (!changed) return;
   const others = keys.filter((key) => key !== changed && state[key]);

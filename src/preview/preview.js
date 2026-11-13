@@ -6,7 +6,7 @@
 //    über ihren lokalen Webserver. So lässt sich die Seite auf einem echten Smartphone prüfen.
 
 import { startPlayer } from '../core/player.js';
-import { renderCss, renderFreeLayer, renderHotspotLayer, renderSections } from '../export/page.js';
+import { renderCss, renderFontFaces, renderFreeLayer, renderHotspotLayer, renderLoader, renderSections } from '../export/page.js';
 
 const MIME = { svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 
@@ -23,7 +23,7 @@ function blobUrls(files) {
 function buildPage(project, assetUrl) {
   const options = { assetUrl };
   document.title = project.name;
-  document.querySelector('#page-css').textContent = renderCss(project);
+  document.querySelector('#page-css').textContent = renderFontFaces(project, assetUrl) + renderCss(project);
   document.querySelector('.page').innerHTML = renderSections(project, options);
   document.querySelector('.page').insertAdjacentHTML('afterend', renderFreeLayer(project, options) + renderHotspotLayer(project));
   if (project.settings.poster) {
@@ -33,6 +33,7 @@ function buildPage(project, assetUrl) {
     poster.src = assetUrl(project.settings.poster);
     document.querySelector('#stage').after(poster);
   }
+  document.querySelector('.page').insertAdjacentHTML('beforebegin', renderLoader(project));
 }
 
 const canvas = document.querySelector('#stage');

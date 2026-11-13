@@ -28,10 +28,23 @@ const section = (id, name, extra = []) => ({
 });
 
 const project = {
-  formatVersion: 7,
+  formatVersion: 8,
   name: 'Export-Test',
   model: { file: 'sample.glb', stats: null },
   base: {
+    'light:l1.position': [1.2, 1.4, 1.2],
+    'light:l1.target': [0, 0.3, 0],
+    'light:l1.color': '#ffd9a0',
+    'light:l1.intensity': 30,
+    'light:l1.angle': 45,
+    'light:l1.penumbra': 0.4,
+    'light:l1.distance': 0,
+    'light:l2.position': [-1.3, 0.8, 1],
+    'light:l2.target': [0, 0.3, 0],
+    'light:l2.color': '#a0c8ff',
+    'light:l2.intensity': 10,
+    'light:l2.width': 1,
+    'light:l2.height': 1,
     'camera.position': [1.97, 1.15, 3.32],
     'camera.target': [0, 0, 0.035],
     'camera.fov': 40,
@@ -102,6 +115,11 @@ const project = {
     ],
   },
   meshActions: [{ nodeId: 'Geraet/Drehknopf', action: { type: 'clip', clip: 'Knopf drehen', mode: 'toggle' } }],
+  fonts: [],
+  lights: [
+    { id: 'l1', name: 'Spotlicht 1', type: 'spot' },
+    { id: 'l2', name: 'Flächenlicht 1', type: 'area' },
+  ],
   hotspots: [
     {
       id: 'hs1',
@@ -139,8 +157,8 @@ const project = {
         type: 'instance',
         templateId: 'tpl1',
         placement: 'free',
-        style: { x: 62, y: 28 },
-        overrides: { mobile: { x: 6, y: 58 } },
+        style: { anchorX: 'right', anchorY: 'center', x: 0, y: -120, fontFamily: 'serif', lineHeight: 1.3, padding: [8, 12, 8, 12] },
+        overrides: { mobile: { anchorX: 'left', x: 0, y: 160 } },
         animation: { type: 'fade', in: [0, 0.15], out: [0.85, 1] },
         content: { slot_h: { text: 'Karte im Abschnitt Details' } },
       },
@@ -196,6 +214,9 @@ const project = {
     background: '#14161a',
     scrollSmoothing: 0,
     textMode: 'pinned',
+    layout: { pageWidth: 0, innerWidth: 1100, padding: 24 },
+    font: 'system',
+    loader: 'ring',
     environment: { file: 'himmel.hdr', showBackground: true, rotation: 40, backgroundIntensity: 1, backgroundBlur: 0.3 },
     poster: 'poster.png',
     reducedMotion: 'respect',

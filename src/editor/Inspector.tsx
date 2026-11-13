@@ -22,7 +22,8 @@ import {
   styleInfo,
 } from './components';
 import { BREAKPOINT_LABELS, Field, InheritRow, NumberInput, OptionalNumber } from './fields';
-import { importImage, useEditor } from './store';
+import { importFont, importImage, useEditor } from './store';
+import { FONT_LABELS } from './fonts';
 
 const ANIMATION_LABELS: Record<AnimationType, string> = {
   none: 'Keine',
@@ -64,9 +65,48 @@ export function ComponentInspector({ id }: { id: string }) {
       </InheritRow>
     );
   };
-  const number = (key: 'x' | 'y' | 'width' | 'fontSize' | 'padding' | 'radius' | 'gap', label: string, min?: number) =>
+  const number = (key: 'x' | 'y' | 'width' | 'fontSize' | 'radius' | 'gap' | 'lineHeight' | 'letterSpacing', label: string, min?: number, step?: number) =>
     style(key, label, (value, own, set) => (
-      <OptionalNumber label={label} value={own ? value : undefined} placeholder={value === undefined ? 'Standard' : String(value)} min={min} onChange={set} />
+      <OptionalNumber label={label} value={own ? value : undefined} placeholder={value === undefined ? 'Standard' : String(value)} min={min} step={step} onChange={set} />
+    ));
+  /** Vier Seiten: oben, rechts, unten, links. Ein leeres Feld zählt als 0; sind alle leer, gilt der Standard. */
+  const sides = (key: 'padding' | 'margin', label: string, min?: number) =>
+    style(key, label, (value, own, set) => {
+      const current = value === undefined ? undefined : Array.isArray(value) ? value : ([value, value, value, value] as [number, number, number, number]);
+      return (
+        <div className="sides">
+          {(['oben', 'rechts', 'unten', 'links'] as const).map((side, i) => (
+            <label key={side}>
+              <OptionalNumber
+                label={`${label} ${side}`}
+                value={own ? current?.[i] : undefined}
+                placeholder={current ? String(current[i]) : '–'}
+                min={min}
+                onChange={(n) => {
+                  const next = [...(current ?? [0, 0, 0, 0])] as [number, number, number, number];
+                  next[i] = n ?? 0;
+                  set(n === undefined && next.every((v) => v === 0) ? undefined : next);
+                }}
+              />
+              <small>{side}</small>
+            </label>
+          ))}
+        </div>
+      );
+    });
+  const choice = <K extends 'anchorX' | 'anchorY' | 'align' | 'fontWeight'>(key: K, label: string, options: [string, string][], fallback: string) =>
+    style(key, label, (value, _own, set) => (
+      <select
+        aria-label={label}
+        value={String(value ?? fallback)}
+        onChange={(e) => set((e.target.value === '' ? undefined : key === 'fontWeight' ? Number(e.target.value) : e.target.value) as ComponentStyle[K])}
+      >
+        {options.map(([id, name]) => (
+          <option key={id} value={id}>
+            {name}
+          </option>
+        ))}
+      </select>
     ));
   const color = (key: 'color' | 'background', label: string) =>
     style(key, label, (value, _own, set) => (
@@ -235,29 +275,61 @@ export function ComponentInspector({ id }: { id: string }) {
         </Field>
       )}
 
-      <Fold id="style" title={<>Gestaltung · {BREAKPOINT_LABELS[breakpoint]}</>}>
-      {free && number('x', 'Position von links (%)')}
-      {free && number('y', 'Position von oben (%)')}
+      {free && (
+        <Fold id="position" title={<>Position · {BREAKPOINT_LABELS[breakpoint]}</>}>
+          {choice('anchorX', 'Anker horizontal', [['left', 'Linker Rand des Inhaltsbereichs'], ['center', 'Mitte'], ['right', 'Rechter Rand des Inhaltsbereichs']], 'left')}
+          {number('x', 'Abstand zum Anker nach rechts (px)')}
+          {choice('anchorY', 'Anker vertikal', [['top', 'Oben'], ['center', 'Mitte'], ['bottom', 'Unten']], 'center')}
+          {number('y', 'Abstand zum Anker nach unten (px)')}
+          <p className="hint">Abstände sind feste px. Sie bleiben bei jeder Fenstergröße gleich, in Editor, Vorschau und Export.</p>
+        </Fold>
+      )}
+      {type !== 'image' && (
+        <Fold id="text" title={<>Text · {BREAKPOINT_LABELS[breakpoint]}</>}>
+          {style('fontFamily', 'Schrift', (value, _own, set) => (
+            <select
+              aria-label="Schrift"
+              value={value ?? ''}
+              onChange={async (e) => {
+                if (e.target.value !== '+') return set(e.target.value || undefined);
+                const font = await importFont();
+                if (font) set(font);
+              }}
+            >
+              <option value="">Schrift der Seite</option>
+              {Object.entries(FONT_LABELS).map(([key, name]) => (
+                <option key={key} value={key}>
+                  {name}
+                </option>
+              ))}
+              {project.fonts.map((font) => (
+                <option key={font.id} value={'font:' + font.id}>
+                  {font.name} (Datei)
+                </option>
+              ))}
+              <option value="+">Schriftdatei hinzufügen …</option>
+            </select>
+          ))}
+          {number('fontSize', 'Schriftgröße (px)', 6)}
+          {choice('fontWeight', 'Schriftstärke', [['', 'Standard'], ['300', 'Leicht (300)'], ['400', 'Normal (400)'], ['500', 'Mittel (500)'], ['600', 'Halbfett (600)'], ['700', 'Fett (700)'], ['800', 'Extrafett (800)']], '')}
+          {number('lineHeight', 'Zeilenabstand (× Schriftgröße)', 0.5, 0.05)}
+          {number('letterSpacing', 'Laufweite (em)', -0.2, 0.01)}
+          {color('color', 'Textfarbe')}
+          {choice('align', 'Ausrichtung des Textes', [['', 'Standard'], ['left', 'Links'], ['center', 'Mitte'], ['right', 'Rechts']], '')}
+        </Fold>
+      )}
+      <Fold id="spacing" title={<>Abstände · {BREAKPOINT_LABELS[breakpoint]}</>}>
+        {sides('padding', 'Innenabstand / Padding (px)', 0)}
+        {sides('margin', 'Außenabstand / Margin (px)')}
+        {container && number('gap', 'Abstand der Elemente (px)', 0)}
+      </Fold>
+      <Fold id="style" title={<>Fläche · {BREAKPOINT_LABELS[breakpoint]}</>}>
       {style('visible', 'Sichtbar', (value, _own, set) => (
         <input type="checkbox" aria-label="Sichtbar" checked={value ?? true} onChange={(e) => set(e.target.checked)} />
       ))}
       {number('width', 'Breite (px)', 20)}
-      {type !== 'image' && number('fontSize', 'Schriftgröße (px)', 6)}
-      {type !== 'image' && color('color', 'Textfarbe')}
-      {(container || type === 'button') && color('background', 'Hintergrund')}
-      {(container || type === 'button') && number('padding', 'Innenabstand (px)', 0)}
-      {type !== 'headline' && type !== 'text' && number('radius', 'Eckenradius (px)', 0)}
-      {container && number('gap', 'Abstand der Elemente (px)', 0)}
-      {type !== 'image' &&
-        style('align', 'Ausrichtung', (value, _own, set) => (
-          <select aria-label="Ausrichtung" value={value ?? ''} onChange={(e) => set((e.target.value || undefined) as ComponentStyle['align'])}>
-            <option value="">Standard</option>
-            <option value="left">Links</option>
-            <option value="center">Mitte</option>
-            <option value="right">Rechts</option>
-          </select>
-        ))}
-
+      {color('background', 'Hintergrund')}
+      {number('radius', 'Eckenradius (px)', 0)}
       </Fold>
       <Fold id="anim" title="Animation beim Scrollen" closed>
       <Field label="Art">

@@ -1,4 +1,4 @@
-// Projektformat des 3D-Web-Editors (Version 7).
+// Projektformat des 3D-Web-Editors (Version 8).
 // Diese Typen beschreiben project.json. Editor, Vorschau und Export lesen dasselbe Format.
 
 export type Vec3 = [number, number, number];
@@ -41,18 +41,35 @@ export type Breakpoint = 'desktop' | 'tablet' | 'mobile';
 
 /** Gestaltung einer Komponente. Fehlende Werte nutzen den Standard der Seite. */
 export interface ComponentStyle {
-  /** Nur frei platzierte Komponenten: Abstand von links und oben in Prozent des Fensters. */
+  /**
+   * Nur frei platzierte Komponenten: Anker und Abstand zum Anker in px.
+   * anchorX: linker Rand, Mitte oder rechter Rand des Inhaltsbereichs (Inner-Wrapper). Standard "left".
+   * anchorY: oben, Mitte oder unten im Bild. Standard "center".
+   * x nach rechts, y nach unten positiv. Bei "center" liegt die Mitte der Komponente am Anker.
+   */
+  anchorX?: 'left' | 'center' | 'right';
+  anchorY?: 'top' | 'center' | 'bottom';
   x?: number;
   y?: number;
   /** Breite in px */
   width?: number;
+  /** Schrift: Name einer mitgelieferten Schriftfamilie (siehe FONT_STACKS) oder "font:<ID>" für eine Schriftdatei des Projekts */
+  fontFamily?: string;
   /** Schriftgröße in px */
   fontSize?: number;
+  /** Schriftstärke 100 bis 900 */
+  fontWeight?: number;
+  /** Zeilenabstand als Vielfaches der Schriftgröße */
+  lineHeight?: number;
+  /** Laufweite in em */
+  letterSpacing?: number;
   visible?: boolean;
   color?: string;
   background?: string;
-  /** Innenabstand in px */
-  padding?: number;
+  /** Innenabstand in px: ein Wert für alle Seiten oder [oben, rechts, unten, links] */
+  padding?: number | [number, number, number, number];
+  /** Außenabstand in px: ein Wert für alle Seiten oder [oben, rechts, unten, links] */
+  margin?: number | [number, number, number, number];
   /** Eckenradius in px */
   radius?: number;
   /** Abstand zwischen den Kindern einer Karte in px */
@@ -368,8 +385,39 @@ export interface EnvironmentSettings {
   backgroundBlur: number;
 }
 
+/** Eigene Schriftdatei des Projekts (woff2, woff, ttf, otf), wählbar als "font:<ID>". */
+export interface ProjectFont {
+  id: string;
+  /** Name der Schriftfamilie */
+  name: string;
+  /** Dateiname im Projektordner assets/ */
+  file: string;
+}
+
+/**
+ * Zusätzliches Licht in der Szene. Seine Werte sind animierbar und stehen in base:
+ * "light:<ID>.position", ".target" (Blickziel), ".color", ".intensity",
+ * Spot: ".angle" (Öffnungswinkel in Grad), ".penumbra" (weicher Rand 0..1), ".distance" (Reichweite, 0 = unbegrenzt),
+ * Fläche: ".width", ".height", Punkt: ".distance".
+ */
+export interface SceneLight {
+  id: string;
+  name: string;
+  type: 'spot' | 'area' | 'point';
+}
+
+/** Seitenbreite und Inhaltsbereich. Texte und frei platzierte Elemente richten sich am Inhaltsbereich aus. */
+export interface PageLayout {
+  /** Größte Breite der Seite in px. 0 = volle Fensterbreite */
+  pageWidth: number;
+  /** Breite des Inhaltsbereichs (Inner-Wrapper) in px */
+  innerWidth: number;
+  /** Mindestabstand des Inhaltsbereichs zum Seitenrand in px */
+  padding: number;
+}
+
 export interface Project {
-  formatVersion: 7;
+  formatVersion: 8;
   name: string;
   /** resources: Begleitdateien eines .gltf (Puffer und Texturen), relativ zur Modelldatei */
   model: { file: string | null; stats: ModelStats | null; resources?: string[] };
@@ -378,6 +426,8 @@ export interface Project {
   sections: Section[];
   keyframes: Keyframe[];
   templates: Template[];
+  fonts: ProjectFont[];
+  lights: SceneLight[];
   hotspots: Hotspot[];
   lookAts: LookAt[];
   follows: Follow[];
@@ -395,6 +445,11 @@ export interface Project {
      * zum nächsten Abschnitt aus dem Bild. flow = Texte scrollen mit der Seite.
      */
     textMode: 'pinned' | 'flow';
+    layout: PageLayout;
+    /** Schrift der Seite, siehe ComponentStyle.fontFamily */
+    font: string;
+    /** Ladeanzeige: Ring mit Fortschritt, Balken, pulsierende Punkte oder keine */
+    loader: 'ring' | 'bar' | 'dots' | 'none';
     environment: EnvironmentSettings;
     /** Bild, das während des Ladens statt der 3D-Szene zu sehen ist (Dateiname) */
     poster: string | null;

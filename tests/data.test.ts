@@ -140,7 +140,7 @@ describe('Projektformat', () => {
     const old = { ...createProject(), formatVersion: 4 } as Record<string, unknown>;
     delete old.data;
     const project = migrateProject(old);
-    expect(project.formatVersion).toBe(7);
+    expect(project.formatVersion).toBe(8);
     expect(project.data.fields).toEqual([]);
     expect(project.data.source.mode).toBe('test');
   });

@@ -1,5 +1,5 @@
 import type { Project, Scope } from '../core/types';
-import { SCENE_PROPS } from '../core/stage.js';
+import { SCENE_PROPS, lightProps } from '../core/stage.js';
 import { nodeProps, type StateMap } from './stage';
 
 const TARGETS: Record<string, string> = { camera: 'Kamera', keyLight: 'Hauptlicht', ambient: 'Umgebungslicht' };
@@ -12,6 +12,11 @@ const FIELDS: Record<string, string> = {
   color: 'Farbe',
   intensity: 'Stärke',
   strength: 'Stärke',
+  angle: 'Öffnungswinkel',
+  penumbra: 'Weicher Rand',
+  distance: 'Reichweite',
+  width: 'Breite',
+  height: 'Höhe',
 };
 
 export const SCOPE_LABELS: Record<Scope, string> = {
@@ -38,9 +43,13 @@ export function subjectName(subject: string): string {
 
 export const lookProps = (id: string) => [`lookAt:${id}.target`, `lookAt:${id}.strength`];
 
-export function propLabel(prop: string): string {
+export function propLabel(prop: string, project?: Project): string {
   const dot = prop.lastIndexOf('.');
   const target = prop.slice(0, dot);
+  if (target.startsWith('light:')) {
+    const light = project?.lights.find((l) => l.id === target.slice(6));
+    return `${light?.name ?? 'Licht'} · ${FIELDS[prop.slice(dot + 1)] ?? prop.slice(dot + 1)}`;
+  }
   if (target.startsWith('lookAt:')) return `Look At · ${prop.endsWith('.target') ? 'Ziel' : 'Stärke'}`;
   if (target.startsWith('option:')) return 'Variante · Wahl';
   if (target.startsWith('clip:')) return `Animation ${target.slice(5)} · Position`;
@@ -81,7 +90,8 @@ export function propGroups(project: Project, draft: StateMap): PropGroup[] {
 
   const groups = [
     { key: 'camera', label: 'Kamera', props: SCENE_PROPS.filter((p: string) => p.startsWith('camera.')) },
-    { key: 'light', label: 'Licht', props: SCENE_PROPS.filter((p: string) => /^(keyLight|ambient)\./.test(p)) },
+    { key: 'light', label: 'Hauptlicht und Umgebungslicht', props: SCENE_PROPS.filter((p: string) => /^(keyLight|ambient)\./.test(p)) },
+    ...project.lights.map((light) => ({ key: 'light:' + light.id, label: light.name, props: lightProps(light) as string[] })),
     { key: 'model', label: 'Modell (Position, Drehung, Skalierung)', props: nodeProps('model') },
     ...[...nodes].map((id) => ({ key: 'node:' + id, label: 'Bauteil ' + nodeName(id), props: nodeProps(id) })),
     ...project.lookAts.map((look) => ({

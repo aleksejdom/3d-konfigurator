@@ -1,6 +1,6 @@
 import type { Budget, Component, ComponentAnimation, ComponentType, Project, Section, ProjectData } from '../core/types';
 
-export const FORMAT_VERSION = 7;
+export const FORMAT_VERSION = 8;
 
 export const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -72,6 +72,8 @@ export function createProject(): Project {
     sections: [createSection('Start'), createSection('Details'), createSection('Abschluss')],
     keyframes: [],
     templates: [],
+    fonts: [],
+    lights: [],
     hotspots: [],
     lookAts: [],
     follows: [],
@@ -80,7 +82,7 @@ export function createProject(): Project {
     data: createData(),
     framing: { desktop: {}, tablet: {}, mobile: {} },
     budgets: structuredClone(DEFAULT_BUDGETS),
-    settings: { background: '#14161a', scrollSmoothing: 0, textMode: 'pinned', environment: { file: null, showBackground: false, rotation: 0, backgroundIntensity: 1, backgroundBlur: 0 }, poster: null, reducedMotion: 'respect' },
+    settings: { background: '#14161a', scrollSmoothing: 0, textMode: 'pinned', layout: { pageWidth: 0, innerWidth: 1200, padding: 24 }, font: 'system', loader: 'ring', environment: { file: null, showBackground: false, rotation: 0, backgroundIntensity: 1, backgroundBlur: 0 }, poster: null, reducedMotion: 'respect' },
   };
 }
 
@@ -94,6 +96,26 @@ function migrateV1Section(section: any): Section {
   });
   const { elements: _elements, ...rest } = section;
   return { ...rest, components };
+}
+
+/** Fenstergrößen, mit denen Positionen in Prozent (bis Version 7) in px umgerechnet werden. */
+const REFERENCE = { desktop: [1440, 810], tablet: [820, 1100], mobile: [390, 780] } as const;
+
+/** Bis Version 7 standen frei platzierte Komponenten in Prozent des Fensters. Seit Version 8: px ab einem Anker. */
+function migrateFreePosition(component: any) {
+  if (component.placement !== 'free') return;
+  const convert = (style: any, [width, height]: readonly [number, number]) => {
+    if (!style) return;
+    const wrap = Math.max(24, (width - 1200) / 2);
+    if (typeof style.x === 'number') style.x = Math.round((style.x / 100) * width - wrap);
+    if (typeof style.y === 'number') style.y = Math.round((style.y / 100) * height);
+  };
+  component.style ??= {};
+  convert(component.style, REFERENCE.desktop);
+  convert(component.overrides?.tablet, REFERENCE.tablet);
+  convert(component.overrides?.mobile, REFERENCE.mobile);
+  component.style.anchorX = 'left';
+  component.style.anchorY = 'top';
 }
 
 /**
@@ -113,6 +135,9 @@ export function migrateProject(data: unknown): Project {
   if (raw.formatVersion < 2) {
     raw.sections = (raw.sections ?? []).map(migrateV1Section);
   }
+  if (raw.formatVersion < 8) {
+    for (const section of raw.sections ?? []) (section.components ?? []).forEach(migrateFreePosition);
+  }
 
   const fresh = createProject();
   return {
@@ -125,11 +150,19 @@ export function migrateProject(data: unknown): Project {
       mobile: { ...fresh.budgets.mobile, ...raw.budgets?.mobile },
     },
     // environment, poster, reducedMotion seit Version 6
-    settings: { ...fresh.settings, ...raw.settings, environment: { ...fresh.settings.environment, ...raw.settings?.environment } },
+    settings: {
+      ...fresh.settings,
+      ...raw.settings,
+      environment: { ...fresh.settings.environment, ...raw.settings?.environment },
+      layout: { ...fresh.settings.layout, ...raw.settings?.layout },
+    },
     framing: { ...fresh.framing, ...raw.framing },
     sections: raw.sections ?? fresh.sections,
     keyframes: raw.keyframes ?? [],
     templates: raw.templates ?? [],
+    // Seit Version 8
+    fonts: raw.fonts ?? [],
+    lights: raw.lights ?? [],
     // Seit Version 3
     hotspots: raw.hotspots ?? [],
     lookAts: raw.lookAts ?? [],

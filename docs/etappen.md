@@ -92,9 +92,24 @@ Schließt Abnahmekriterium 1 ab.
 - Editor neu gegliedert: Symbolleiste links mit den Bereichen Seite, Elemente, Modell, Hotspots, Varianten, Daten; klappbare Bereiche mit Symbolen; selten gebrauchte Gruppen (Licht, Seiteneinstellungen, Kameraausschnitt, Animation, Vorlage, Datenquelle …) sind zunächst zugeklappt; die App merkt sich den Zustand
 - Projektformat Version 7
 
+## Layout, Ausrichten, Text-Werkzeug, Lichter (erledigt, Stand 13.11.2026)
+
+- Seitenbreite und Inhaltsbereich (Inner-Wrapper) links im Bereich „Seite“: Breite des Inhaltsbereichs, Mindestabstand zum Seitenrand, größte Seitenbreite. Die Textspalte und links oder rechts verankerte Elemente liegen am Rand des Inhaltsbereichs. Hilfslinien im Viewport
+- Frei platzierte Elemente hängen an einem Anker (links, Mitte, rechts des Inhaltsbereichs; oben, Mitte, unten im Bild) mit festem Abstand in px. Abstände sind damit in Editor, Vorschau und Export bei jeder Fenstergröße gleich. Schriftgrößen sind je Breakpoint fest statt fließend
+- Der Editor rechnet rem wie der Browser (16 px) und nutzt dieselben Seitenvariablen wie Vorschau und Export; vorher wich die Darstellung im Editor ab
+- Ausrichten: Mehrfachauswahl mit Umschalt-Klick (Viewport oder Ebenen), gemeinsames Verschieben, Ausrichten an der Auswahl oder am Inhaltsbereich, horizontal und vertikal verteilen (gleichmäßig oder mit festem Abstand in px)
+- Text-Werkzeug: Schrift (neun mitgelieferte Familien oder eigene Schriftdatei woff2/ttf/otf), Größe, Stärke, Zeilenabstand, Laufweite, Farbe, Ausrichtung; Padding und Margin je Seite. Schrift der Seite unter „Schriften“
+- Lichter im neuen Bereich „Licht“: Hauptlicht und Umgebungslicht, dazu Spot-, Flächen- und Punktlichter mit Farbe, Stärke, Öffnungswinkel, weichem Rand, Größe, Reichweite, Position und Blickziel. Verschieben mit dem Anfasser im Viewport. Jedes Licht lässt sich pro Abschnitt merken
+- Ladeanzeige während des Ladens des Modells: Ring oder Balken mit Fortschritt, pulsierende Punkte oder keine
+- Timeline: Punkte kopieren und an anderer Stelle einfügen (Strg+C / Strg+V oder Schaltflächen)
+- Projektformat Version 8; Positionen in Prozent aus älteren Projekten werden in px umgerechnet (Bezug 1440 × 810 px, Tablet 820 × 1100, Mobile 390 × 780)
+
 ## Bekannte Grenzen
 
 - Texturen im Format KTX2/Basis werden nicht geladen
+- Zusätzliche Lichter werfen keine Schatten. Flächenlichter wirken nur auf Standard- und Physical-Materialien
+- Lichter werden über die Liste ausgewählt, nicht per Klick im Viewport
+- Ausrichten an der Auswahl und Verteilen gelten für frei platzierte Elemente; Elemente in der Textspalte folgen der Reihenfolge der Ebenen
 - Bauteile mit Klick-Aktion sind nur per Maus oder Tap erreichbar; für die Tastatur braucht es zusätzlich einen Button mit derselben Aktion
 - Der Vorschau-Link fürs WLAN funktioniert nur in der gebauten Desktop-App, nicht mit `npm run dev` oder `npm run tauri dev`
 - Animationsclips, die per Aktion oder Messwert laufen, spielen in Vorschau und Export, nicht im Editor-Viewport

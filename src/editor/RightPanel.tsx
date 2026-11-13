@@ -1,5 +1,5 @@
 import { Block, Fold } from './Block';
-import { Bookmark, Camera, Move3d, PanelTop, Settings, Sun } from 'lucide-react';
+import { Bookmark, Camera, Move3d, PanelTop, Settings } from 'lucide-react';
 import { capturePoster, importEnvironment, importPoster } from './store';
 import { FieldInspector } from './DataPanels';
 import { GroupInspector, MeshActionField } from './ConfiguratorPanels';
@@ -9,6 +9,8 @@ import { DEFAULT_BLEND } from '../core/timeline.js';
 import type { Breakpoint, Budget, Framing, KeyValue, Scope, Section, Value, Vec3, SectionClip } from '../core/types';
 import { BREAKPOINT_LABELS, Field, InheritRow, NumberInput, OptionalNumber, VectorField } from './fields';
 import { ComponentInspector } from './Inspector';
+import { AlignPanel } from './AlignPanel';
+import { LightInspector } from './LightPanels';
 import { HotspotInspector, InteractionEditor } from './InteractionPanels';
 import { EASING_LABELS, SCOPE_LABELS, nodeName, propLabel } from './labels';
 import { currentState, editor } from './stage';
@@ -69,9 +71,9 @@ function KeyframeInspector({ id }: { id: string }) {
       {Object.entries(keyframe.values).map(([prop, kv]) => (
         <div className="keyvalue" key={prop}>
           <div className="keyvalue-head">
-            <strong>{propLabel(prop)}</strong>
+            <strong>{propLabel(prop, project)}</strong>
             <button
-              aria-label={`${propLabel(prop)} aus dem Punkt entfernen`}
+              aria-label={`${propLabel(prop, project)} aus dem Punkt entfernen`}
               title="Aus dem Punkt entfernen"
               onClick={() =>
                 update((p) => {
@@ -227,19 +229,6 @@ function SceneEditor() {
         <InteractionEditor subject="camera" />
         <FramingEditor />
       </Block>
-      <Block id="light" icon={Sun} title="Licht" closed>
-        <Field label="Farbe Hauptlicht">
-          <input type="color" value={state['keyLight.color'] as string} onChange={(e) => set('keyLight.color')(e.target.value)} />
-        </Field>
-        <Field label={`Stärke Hauptlicht: ${num('keyLight.intensity').toFixed(1)}`}>
-          <input type="range" min={0} max={8} step={0.1} value={num('keyLight.intensity')} onChange={(e) => set('keyLight.intensity')(parseFloat(e.target.value))} />
-        </Field>
-        <VectorField label="Position Hauptlicht" value={vec('keyLight.position')} onChange={set('keyLight.position')} />
-        <Field label={`Umgebungslicht: ${num('ambient.intensity').toFixed(1)}`}>
-          <input type="range" min={0} max={4} step={0.1} value={num('ambient.intensity')} onChange={(e) => set('ambient.intensity')(parseFloat(e.target.value))} />
-        </Field>
-        <p className="hint">Änderungen gelten erst nach „Merken“ für diese Stelle der Seite.</p>
-      </Block>
     </>
   );
 }
@@ -330,6 +319,14 @@ function PageSettings() {
           <option value="flow">Scrollen mit der Seite</option>
         </select>
       </Field>
+      <Field label="Ladeanzeige">
+        <select value={project.settings.loader} onChange={(e) => update((p) => void (p.settings.loader = e.target.value as typeof p.settings.loader))}>
+          <option value="ring">Ring mit Fortschritt</option>
+          <option value="bar">Balken mit Fortschritt</option>
+          <option value="dots">Pulsierende Punkte</option>
+          <option value="none">Keine</option>
+        </select>
+      </Field>
       <Field label="Reduzierte Bewegung">
         <select
           value={project.settings.reducedMotion}
@@ -416,12 +413,15 @@ export function RightPanel() {
   const selectedSection = useEditor((s) => s.selectedSection);
   const selectedComponent = useEditor((s) => s.selectedComponent);
   const selectedHotspot = useEditor((s) => s.selectedHotspot);
+  const selectedLight = useEditor((s) => s.selectedLight);
   const selectedGroup = useEditor((s) => s.selectedGroup);
   const selectedField = useEditor((s) => s.selectedField);
   const section = project.sections.find((s) => s.id === selectedSection);
 
   return (
     <aside className="panel right">
+      {selectedLight && <LightInspector key={selectedLight} id={selectedLight} />}
+      <AlignPanel />
       {selectedComponent && <ComponentInspector key={selectedComponent} id={selectedComponent} />}
       {selectedHotspot && <HotspotInspector key={selectedHotspot} id={selectedHotspot} />}
       {selectedGroup && <GroupInspector key={selectedGroup} id={selectedGroup} />}

@@ -10,6 +10,9 @@ import {
   Image as ImageIcon,
   Info,
   Layers as LayersIcon,
+  Lightbulb,
+  Ruler,
+  Type,
   LayoutList,
   ListTree,
   type LucideIcon,
@@ -23,6 +26,9 @@ import {
   Wifi,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { LightList } from './LightPanels';
+import { FONT_LABELS } from './fonts';
+import { Field, NumberInput } from './fields';
 import { SHOW_ALL } from './Block';
 import { clipProp } from '../core/stage.js';
 import { currentState } from './stage';
@@ -48,7 +54,7 @@ import { removeHotspot } from './interactions';
 import { nodeName } from './labels';
 import { createSection } from './project';
 import { editor } from './stage';
-import { importModel, setPos, update, useEditor } from './store';
+import { importFont, importModel, selectComponent, setPos, update, useEditor } from './store';
 import { DRAG_TYPE } from './Viewport';
 
 const number = new Intl.NumberFormat('de-DE');
@@ -405,7 +411,7 @@ function Layers() {
                   const id = event.dataTransfer.getData(LAYER_DRAG);
                   if (id) moveComponent(id, node.id, isContainer(node.type) ? 'inside' : 'before');
                 }}
-                onClick={() => useEditor.setState({ selectedComponent: node.id })}
+                onClick={(event) => selectComponent(node.id, event.shiftKey)}
               >
                 <span className="kind">{isContainer(node.type) ? '▤' : '·'}</span> {COMPONENT_LABELS[node.type]}
                 {node.text && <small>{node.text.slice(0, 22)}</small>}
@@ -455,12 +461,92 @@ function Hotspots() {
   );
 }
 
-type Tab = 'page' | 'elements' | 'model' | 'hotspots' | 'configurator' | 'data';
+/** Seitenbreite und Inhaltsbereich. Texte und frei platzierte Elemente richten sich am Inhaltsbereich aus. */
+function PageLayoutBlock() {
+  const layout = useEditor((s) => s.project.settings.layout);
+  const guides = useEditor((s) => s.guides);
+  const set = (key: keyof typeof layout) => (value: number) => update((p) => void (p.settings.layout[key] = Math.max(0, Math.round(value))), 'layout-' + key);
+  return (
+    <Block id="layout" icon={Ruler} title="Seitenbreite und Inhaltsbereich">
+      <Field label="Inhaltsbereich / Inner-Wrapper (px)">
+        <NumberInput label="Breite des Inhaltsbereichs" value={layout.innerWidth} min={320} step={10} onChange={set('innerWidth')} />
+      </Field>
+      <Field label="Mindestabstand zum Seitenrand (px)">
+        <NumberInput label="Mindestabstand zum Seitenrand" value={layout.padding} min={0} step={4} onChange={set('padding')} />
+      </Field>
+      <Field label="Größte Seitenbreite (px, 0 = volle Fensterbreite)">
+        <NumberInput label="Größte Seitenbreite" value={layout.pageWidth} min={0} step={20} onChange={set('pageWidth')} />
+      </Field>
+      <label className="check">
+        <input type="checkbox" checked={guides} onChange={(e) => useEditor.setState({ guides: e.target.checked })} />
+        Hilfslinien im Viewport zeigen
+      </label>
+      <p className="hint">
+        Die Textspalte und links oder rechts verankerte Elemente liegen am Rand des Inhaltsbereichs. Ist das Fenster schmaler,
+        gilt der Mindestabstand.
+      </p>
+    </Block>
+  );
+}
+
+/** Schrift der Seite und eigene Schriftdateien. */
+function FontsBlock() {
+  const font = useEditor((s) => s.project.settings.font);
+  const fonts = useEditor((s) => s.project.fonts);
+  return (
+    <Block id="fonts" icon={Type} title="Schriften" closed>
+      <Field label="Schrift der Seite">
+        <select value={font} onChange={(e) => update((p) => void (p.settings.font = e.target.value))}>
+          {Object.entries(FONT_LABELS).map(([key, name]) => (
+            <option key={key} value={key}>
+              {name}
+            </option>
+          ))}
+          {fonts.map((f) => (
+            <option key={f.id} value={'font:' + f.id}>
+              {f.name} (Datei)
+            </option>
+          ))}
+        </select>
+      </Field>
+      {fonts.length > 0 && (
+        <ul className="list">
+          {fonts.map((f) => (
+            <li key={f.id}>
+              <input
+                aria-label="Name der Schrift"
+                value={f.name}
+                onChange={(e) => update((p) => void (p.fonts.find((x) => x.id === f.id)!.name = e.target.value), 'font-name-' + f.id)}
+              />
+              <button
+                aria-label={`${f.name} entfernen`}
+                title="Schrift entfernen"
+                onClick={() =>
+                  update((p) => {
+                    p.fonts = p.fonts.filter((x) => x.id !== f.id);
+                    if (p.settings.font === 'font:' + f.id) p.settings.font = 'system';
+                  })
+                }
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button onClick={() => void importFont()}>Schriftdatei hinzufügen (woff2, ttf, otf)</button>
+      <p className="hint">Einzelne Texte bekommen ihre Schrift rechts unter „Text“. Schriftdateien wandern mit in den Export.</p>
+    </Block>
+  );
+}
+
+type Tab = 'page' | 'elements' | 'model' | 'lights' | 'hotspots' | 'configurator' | 'data';
 
 const TABS: { id: Tab; label: string; icon: LucideIcon; hint: string }[] = [
   { id: 'page', label: 'Seite', icon: PanelTop, hint: 'Abschnitte der Seite' },
   { id: 'elements', label: 'Elemente', icon: Shapes, hint: 'Texte, Bilder, Karten und ihre Ebenen' },
   { id: 'model', label: 'Modell', icon: Box, hint: '3D-Modell und seine Bauteile' },
+  { id: 'lights', label: 'Licht', icon: Lightbulb, hint: 'Hauptlicht, Spot- und Flächenlichter' },
   { id: 'hotspots', label: 'Hotspots', icon: MapPin, hint: 'Klickbare Punkte am Modell' },
   { id: 'configurator', label: 'Varianten', icon: SlidersHorizontal, hint: 'Konfigurator: Varianten und Materialien' },
   { id: 'data', label: 'Daten', icon: Database, hint: 'Live-Daten und Testwerte' },
@@ -482,6 +568,7 @@ export function LeftPanel() {
     page: 0,
     elements: 0,
     model: 0,
+    lights: useEditor((s) => s.project.lights.length),
     hotspots: useEditor((s) => s.project.hotspots.length),
     configurator: useEditor((s) => s.project.variantGroups.length),
     data: useEditor((s) => s.project.data.fields.length),
@@ -501,6 +588,8 @@ export function LeftPanel() {
   const selectedGroup = useEditor((s) => s.selectedGroup);
   const selectedField = useEditor((s) => s.selectedField);
   const placing = useEditor((s) => s.placingHotspot);
+  const selectedLight = useEditor((s) => s.selectedLight);
+  useEffect(() => void (selectedLight && setTab('lights')), [selectedLight]);
   useEffect(() => void ((selectedHotspot || placing) && setTab('hotspots')), [selectedHotspot, placing]);
   useEffect(() => void (selectedComponent && setTab('elements')), [selectedComponent]);
   useEffect(() => void (selectedGroup && setTab('configurator')), [selectedGroup]);
@@ -519,7 +608,14 @@ export function LeftPanel() {
         ))}
       </nav>
       <div className="rail-content">
-        {show('page') && <Sections />}
+        {show('page') && (
+          <>
+            <Sections />
+            <PageLayoutBlock />
+            <FontsBlock />
+          </>
+        )}
+        {show('lights') && <LightList />}
         {show('elements') && (
           <>
             <Library />

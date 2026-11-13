@@ -1,8 +1,9 @@
-import { useRef } from 'react';
+import { ClipboardPaste, Copy } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import type { Keyframe, Project } from '../core/types';
 import { locate } from './components';
 import { posLabel, propLabel } from './labels';
-import { keyframePos, moveKeyframe, setPos, useEditor } from './store';
+import { copyKeyframe, keyframePos, moveKeyframe, pasteKeyframe, setPos, useEditor } from './store';
 
 /** Breite der Abschnitte entspricht ihrer Höhe auf der Seite. */
 function layout(project: Project) {
@@ -23,7 +24,26 @@ export function Timeline() {
   const pos = useEditor((s) => s.pos);
   const selectedKeyframe = useEditor((s) => s.selectedKeyframe);
   const selectedComponent = useEditor((s) => s.selectedComponent);
+  const copied = useEditor((s) => s.copiedKeyframe);
   const trackRef = useRef<HTMLDivElement>(null);
+
+  // Strg+C kopiert den ausgewählten Punkt, Strg+V fügt ihn an der aktuellen Stelle ein.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
+      if ((event.target as HTMLElement).closest('input, textarea, select')) return;
+      const state = useEditor.getState();
+      if (event.key.toLowerCase() === 'c' && state.selectedKeyframe && !window.getSelection()?.toString()) {
+        event.preventDefault();
+        copyKeyframe();
+      } else if (event.key.toLowerCase() === 'v' && state.copiedKeyframe) {
+        event.preventDefault();
+        pasteKeyframe();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   // Animationsbereiche der ausgewählten Komponente in ihrem Abschnitt anzeigen.
   const located = selectedComponent ? locate(project, selectedComponent) : null;
   const animation = located && located.node.animation.type !== 'none' ? located.node.animation : null;
@@ -47,7 +67,11 @@ export function Timeline() {
 
   const scrub = (event: React.PointerEvent) => {
     if (count === 0) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Ohne Zeigerbindung folgt die Position nur, solange der Zeiger über der Timeline ist.
+    }
     useEditor.setState({ selectedKeyframe: null });
     setPos(posAt(event.clientX));
   };
@@ -93,6 +117,15 @@ export function Timeline() {
         <button onClick={() => jump(1)} title="Zum nächsten Punkt">
           Punkt ▶
         </button>
+        <span className="bar-sep" />
+        <button onClick={() => copyKeyframe()} disabled={!selectedKeyframe} title="Ausgewählten Punkt kopieren (Strg+C)">
+          <Copy size={14} aria-hidden />
+          Kopieren
+        </button>
+        <button onClick={pasteKeyframe} disabled={!copied} title="Kopierten Punkt an der aktuellen Stelle einfügen (Strg+V)">
+          <ClipboardPaste size={14} aria-hidden />
+          Einfügen
+        </button>
         <span className="legend">
           <i className="dot inherit" /> wird übernommen
           <i className="dot local" /> nur im Abschnitt
@@ -131,7 +164,7 @@ export function Timeline() {
                   key={keyframe.id}
                   className={`keyframe ${scopeClass(keyframe)} ${keyframe.id === selectedKeyframe ? 'selected' : ''}`}
                   style={{ left: `${keyframe.t * 100}%` }}
-                  title={`${section.name} · ${Math.round(keyframe.t * 100)} %\n${Object.keys(keyframe.values).map(propLabel).join('\n')}`}
+                  title={`${section.name} · ${Math.round(keyframe.t * 100)} %\n${Object.keys(keyframe.values).map((prop) => propLabel(prop, project)).join('\n')}`}
                   aria-label={`Punkt ${section.name} ${Math.round(keyframe.t * 100)} %`}
                   onPointerDown={(e) => dragKeyframe(e, keyframe)}
                 />

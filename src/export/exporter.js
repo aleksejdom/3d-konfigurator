@@ -2,7 +2,7 @@
 // Die Dateien unter src/core werden unverändert mitgegeben: Der Export rechnet deshalb
 // mit genau dem Code, mit dem auch die Editor-Vorschau rechnet.
 
-import { escapeHtml, renderCss, renderFreeLayer, renderHotspotLayer, renderSections, usedImages } from './page.js';
+import { escapeHtml, renderCss, renderFontFaces, renderFreeLayer, renderHotspotLayer, renderLoader, renderSections, usedImages } from './page.js';
 
 const VERSIONS = { three: '^0.187.0', gsap: '^3.15.1', vite: '^8.3.8', astro: '^7.4.11' };
 
@@ -149,6 +149,9 @@ export function buildExport(project, target, coreSources) {
   // Das Posterbild liegt über der Szene, bis das Modell zum ersten Mal gerendert ist.
   const posterTag = poster ? `\n    <img class="poster" src="images/${escapeHtml(encodeURI(poster))}" alt="">` : '';
 
+  const loader = renderLoader(project, '    ');
+  const loaderTag = loader ? '\n' + loader : '';
+
   const binaries = [
     ...(modelFile ? [{ path: `${root}model/${modelFile}`, kind: 'model', name: modelFile, offline: true }] : []),
     ...(project.model.resources || []).map((name) => ({ path: `${root}model/${name}`, kind: 'resource', name, offline: true })),
@@ -158,7 +161,7 @@ export function buildExport(project, target, coreSources) {
     ...(project.model.stats && project.model.stats.draco ? DRACO_FILES.map((name) => ({ path: `${root}draco/${name}`, kind: 'draco', name, offline: true })) : []),
   ];
 
-  const body = `    <canvas id="stage"${modelAttr} aria-hidden="true"></canvas>${posterTag}
+  const body = `    <canvas id="stage"${modelAttr} aria-hidden="true"></canvas>${posterTag}${loaderTag}
     <main class="page">
 ${renderSections(project, { indent: '      ' })}
     </main>${freeLayer ? '\n' + freeLayer : ''}${hotspotLayer ? '\n' + hotspotLayer : ''}`;
@@ -190,7 +193,7 @@ ${body}
   </body>
 </html>
 `;
-    files['styles.css'] = renderCss(project);
+    files['styles.css'] = renderFontFaces(project, (file) => 'images/' + encodeURI(file)) + renderCss(project);
     files['project.js'] = `// Abschnitte, gespeicherte Punkte, Hotspots, Varianten und Datenfelder der Szene.\nwindow.SCENE_PROJECT = ${JSON.stringify(project, null, 2)};\n`;
     files['source/vite.config.js'] = `import { defineConfig } from 'vite';
 
@@ -278,7 +281,7 @@ ${sceneNote().replace(/`project\.json`/, '`project.js`').replace(/`scene\//g, '`
     if (name !== 'main.js') files['src/scene/' + name] = source;
   }
   files['src/project.json'] = JSON.stringify(project, null, 2) + '\n';
-  files['src/styles/page.css'] = renderCss(project);
+  files['src/styles/page.css'] = renderFontFaces(project, (file) => '/images/' + encodeURI(file)) + renderCss(project);
   files['src/pages/index.astro'] = `---
 import '../styles/page.css';
 ---
