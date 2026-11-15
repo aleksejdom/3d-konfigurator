@@ -18,6 +18,8 @@ import {
   FolderPlus,
   Lightbulb,
   Pencil,
+  PenTool,
+  SquareMousePointer,
   Trash2,
   Undo2,
   Ungroup,
@@ -39,6 +41,7 @@ import { useEffect, useState } from 'react';
 import { LightList } from './LightPanels';
 import { createGroup, currentParent, isInside, removeNodes, renameGroup, restoreNode, setParent, ungroup } from './hierarchy';
 import { FONT_LABELS } from './fonts';
+import { ICONS, ICON_SHAPES } from './icons';
 import { Field, NumberInput } from './fields';
 import { SHOW_ALL } from './Block';
 import { clipProp } from '../core/stage.js';
@@ -49,7 +52,8 @@ import { ConfiguratorList } from './ConfiguratorPanels';
 import { useMemo } from 'react';
 import type { Budget, ModelStats, Project } from '../core/types';
 import { splitPos } from '../core/timeline.js';
-import type { ComponentType } from '../core/types';
+import type { ComponentContent, ComponentType } from '../core/types';
+import type { ComponentSpec } from './components';
 import {
   COMPONENT_LABELS,
   addComponent,
@@ -515,6 +519,7 @@ const LIBRARY: { type: Exclude<ComponentType, 'instance'>; hint: string; icon: L
   { type: 'headline', hint: 'Überschrift', icon: Heading },
   { type: 'text', hint: 'Absatz', icon: Text },
   { type: 'image', hint: 'PNG, JPG, SVG …', icon: ImageIcon },
+  { type: 'icon', hint: 'Eigene SVG-Grafik, auch als Schaltfläche mit Aktion', icon: PenTool },
   { type: 'button', hint: 'Link als Schaltfläche', icon: MousePointerClick },
   { type: 'card', hint: 'Behälter für Elemente', icon: CreditCard },
   { type: 'infobox', hint: 'Kompakter Hinweis', icon: Info },
@@ -531,12 +536,28 @@ function Library() {
   const section = project.sections[splitPos(project, pos).index];
 
   /** Klick: in die ausgewählte Karte legen, sonst ins Seitenlayout des Abschnitts. */
-  const add = (spec: { type: Exclude<ComponentType, 'instance'> } | { templateId: string }) => {
+  const add = (spec: ComponentSpec) => {
     if (!section) return;
     const selected = useEditor.getState().selectedComponent;
     const located = selected ? locate(project, selected) : null;
     const container = located && (isContainer(located.node.type) || located.node.type === 'instance') ? selected! : undefined;
     addComponent(spec, { sectionId: section.id, containerId: container });
+  };
+
+  const [shape, setShapeState] = useState(() => {
+    try {
+      return localStorage.getItem('ui.iconShape') ?? 'round';
+    } catch {
+      return 'round';
+    }
+  });
+  const setShape = (next: string) => {
+    setShapeState(next);
+    try {
+      localStorage.setItem('ui.iconShape', next);
+    } catch {
+      // Die Wahl gilt dann bis zum Schließen der App.
+    }
   };
 
   const drag = (spec: object) => ({
@@ -560,6 +581,31 @@ function Library() {
         ))}
       </div>
       <p className="hint">In den Viewport ziehen: auf eine Karte, in die Textspalte oder frei über das Modell.</p>
+      <Fold id="gui" title="Bedienelemente">
+        <Field label="Form neuer Bedienelemente">
+          <select value={shape} onChange={(e) => setShape(e.target.value)} aria-label="Form neuer Bedienelemente">
+            {Object.entries(ICON_SHAPES).map(([key, name]) => (
+              <option key={key} value={key}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {(['Wiedergabe', 'Richtung', 'Ansicht', 'Auswahl', 'Allgemein'] as const).map((group) => (
+          <div key={group} className="gui-group">
+            <small>{group}</small>
+            <div className="gui-grid">
+              {ICONS.filter((icon) => icon.group === group).map((icon) => {
+                const spec: ComponentSpec = { type: 'icon', preset: { svg: icon.svg, alt: icon.name, tint: false, shape: shape as ComponentContent['shape'] } };
+                return (
+                  <button key={icon.id} {...drag(spec)} onClick={() => add(spec)} title={icon.name} aria-label={`${icon.name} hinzufügen`} dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <p className="hint">Anklicken oder in den Viewport ziehen. Rechts gibst du dem Element eine Aktion, zum Beispiel eine Animation abspielen oder ein Material wählen.</p>
+      </Fold>
       {project.templates.length > 0 && (
         <>
           <Fold id="templates" title="Vorlagen">

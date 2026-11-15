@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TEXT_EDGE, animationProgress, breakpointFor, cascade, resolveFraming, textPresence } from '../src/core/components.js';
-import { placementLines, renderCss, renderFontFaces, renderFreeLayer, renderSections, resolveComponent, usedImages } from '../src/export/page.js';
+import { iconSvg, placementLines, renderCss, renderFontFaces, renderFreeLayer, renderSections, resolveComponent, usedImages } from '../src/export/page.js';
 import { createComponent, createProject, migrateProject } from '../src/editor/project';
 import type { Component, Project } from '../src/core/types';
 
@@ -240,5 +240,38 @@ describe('Text-Werkzeug und Layout', () => {
     const css = renderCss(project);
     expect(css).toContain('--page-width: 1600px;');
     expect(css).toContain('--inner-width: 1000px;\n  --inner-pad: 32px;\n  --wrap: max(var(--inner-pad), (100cqw - var(--inner-width)) / 2);');
+  });
+});
+
+describe('SVG-Komponente und Bedienelemente', () => {
+  const make = (patch: Record<string, unknown>) => {
+    const project = createProject();
+    const icon = createComponent('icon');
+    Object.assign(icon, { svg: '<svg viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="#ff0000"/></svg>', alt: 'Tür öffnen' }, patch);
+    project.sections[0].components.push(icon);
+    return { project, icon, html: renderSections(project) };
+  };
+
+  it('ist mit Aktion eine Schaltfläche mit Namen, die die Aktion trägt', () => {
+    const { html } = make({ action: { type: 'clip', clip: 'Tür', mode: 'toggle' }, shape: 'round' });
+    expect(html).toMatch(/<button type="button" class="c icon shape-round[^"]*"[^>]*data-action="[^"]+"[^>]* aria-label="Tür öffnen"><svg aria-hidden="true" focusable="false"/);
+  });
+
+  it('ist mit Linkziel ein Link und sonst eine Grafik', () => {
+    expect(make({ href: '#kontakt' }).html).toContain('href="#kontakt" aria-label="Tür öffnen"');
+    expect(make({}).html).toMatch(/<span class="c icon[^>]* role="img" aria-label="Tür öffnen">/);
+    expect(make({ svg: undefined }).html).not.toContain('icon');
+  });
+
+  it('färbt auf Wunsch ein und lässt nichts Ausführbares durch', () => {
+    expect(iconSvg({ svg: '<svg><path fill="#ff0000" stroke="none"/></svg>', tint: true })).toBe('<svg aria-hidden="true" focusable="false" fill="currentColor"><path fill="currentColor" stroke="none"/></svg>');
+    expect(iconSvg({ svg: '<svg><path fill="#ff0000"/></svg>', tint: false })).toContain('fill="#ff0000"');
+    const cleaned = iconSvg({ svg: '<svg onload="alert(1)"><script>alert(2)</script><a href="javascript:alert(3)"><path onclick="x()"/></a></svg>' });
+    expect(cleaned).not.toMatch(/script|onload|onclick|javascript:/);
+  });
+
+  it('gilt als Aktionselement für Varianten und Clips im Export', () => {
+    const { project } = make({ action: { type: 'clip', clip: 'Tür', mode: 'toggle' } });
+    expect(renderCss(project)).toContain('.icon.is-active');
   });
 });

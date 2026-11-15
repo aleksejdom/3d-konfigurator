@@ -16,7 +16,7 @@ export function escapeHtml(text) {
 }
 
 export const CONTAINER_TYPES = ['card', 'infobox'];
-const CONTENT_KEYS = ['text', 'href', 'src', 'alt', 'action'];
+const CONTENT_KEYS = ['text', 'href', 'src', 'alt', 'action', 'svg', 'tint', 'shape'];
 
 // ---------- Vorlagen auflösen ----------
 
@@ -110,6 +110,27 @@ const isOverlay = (node) => node.placement === 'free' || isAnchored(node);
 
 /** Aktion als Text für data-action, z. B. "hotspot:<ID>" oder "select:<Gruppe>:<Wahl>" (siehe core/actions.js). */
 const actionValue = (node) => actionToString(node.action);
+
+/**
+ * Markup einer SVG-Komponente. Der Editor bereinigt die Datei beim Import; hier fallen zur Sicherheit
+ * noch einmal Skripte und Ereignis-Attribute weg, falls die Projektdatei von Hand geändert wurde.
+ * Mit "tint" werden Füllungen und Konturen zu currentColor, die Grafik nimmt also die Textfarbe an.
+ */
+export function iconSvg(node) {
+  let svg = String(node.svg || '')
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<\/?(?:script|foreignObject|iframe|object|embed)\b[^>]*>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href\s*=\s*["'])\s*javascript:[^"']*/gi, '$1#');
+  if (node.tint) {
+    svg = svg
+      .replace(/\b(fill|stroke)\s*=\s*"(?!none|currentColor|url\()[^"]*"/gi, '$1="currentColor"')
+      .replace(/\b(fill|stroke)\s*:\s*(?!none|currentColor|url\()[^;"']+/gi, '$1: currentColor');
+    // Ohne eigene Füllung wäre die Grafik schwarz.
+    if (!/<svg\b[^>]*\bfill\s*=/i.test(svg)) svg = svg.replace(/<svg\b/i, '<svg fill="currentColor"');
+  }
+  return svg.replace(/<svg\b/i, '<svg aria-hidden="true" focusable="false"');
+}
 
 /** Auswahlliste einer Variantengruppe. Das Skript stellt die aktive Wahl ein und sperrt nicht verfügbare Varianten. */
 function renderSelect(node, attributes, indent) {
@@ -209,6 +230,16 @@ function renderNode(node, context, indent, depth) {
     if (action) return `${indent}<button type="button" ${attributes}>${textHtml(node)}</button>`;
     return `${indent}<a ${attributes} href="${escapeHtml(node.href || '#')}">${textHtml(node)}</a>`;
   }
+  if (node.type === 'icon') {
+    // SVG-Grafik. Mit Aktion ist sie eine Schaltfläche, mit Linkziel ein Link, sonst ein Bild.
+    if (!node.svg) return context.editor ? `${indent}<div ${attributes.replace('icon', 'icon placeholder')}>SVG wählen</div>` : '';
+    const graphic = iconSvg(node);
+    if (node.shape && node.shape !== 'plain') attributes = attributes.replace('class="c icon', `class="c icon shape-${node.shape}`);
+    const label = escapeHtml(node.alt || '');
+    if (action) return `${indent}<button type="button" ${attributes}${label ? ` aria-label="${label}"` : ''}>${graphic}</button>`;
+    if (node.href && node.href !== '#') return `${indent}<a ${attributes} href="${escapeHtml(node.href)}"${label ? ` aria-label="${label}"` : ''}>${graphic}</a>`;
+    return `${indent}<span ${attributes}${label ? ` role="img" aria-label="${label}"` : ' aria-hidden="true"'}>${graphic}</span>`;
+  }
   if (node.type === 'image') {
     if (!node.src) return context.editor ? `${indent}<div ${attributes.replace('image', 'image placeholder')}>Bild wählen</div>` : '';
     return `${indent}<img ${attributes} src="${escapeHtml(context.assetUrl(node.src))}" alt="${escapeHtml(node.alt)}" loading="lazy">`;
@@ -298,7 +329,7 @@ function isDark(hex) {
   return luminance < 0.5;
 }
 
-const DISPLAY = { card: 'flex', infobox: 'flex', button: 'inline-block', select: 'inline-block', slider: 'grid', value: 'grid', status: 'flex', connection: 'flex' };
+const DISPLAY = { icon: 'inline-flex', card: 'flex', infobox: 'flex', button: 'inline-block', select: 'inline-block', slider: 'grid', value: 'grid', status: 'flex', connection: 'flex' };
 const ALIGN_ITEMS = { left: 'flex-start', center: 'center', right: 'flex-end' };
 const POSITION_KEYS = ['x', 'y', 'anchorX', 'anchorY', 'visible'];
 const PLACE_KEYS = ['x', 'y', 'anchorX', 'anchorY'];
@@ -833,6 +864,75 @@ h1.headline {
   outline-offset: 3px;
 }
 
+/* SVG-Grafik, auch als Schaltfläche. Die Breite bestimmt die Größe, die Höhe folgt der Grafik. */
+.icon {
+  display: inline-flex;
+  width: 3rem;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  line-height: 0;
+}
+
+.icon svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Bedienelemente: Fläche hinter dem Symbol */
+.icon.shape-round,
+.icon.shape-square,
+.icon.shape-outline {
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  aspect-ratio: 1;
+  padding: 0.85rem;
+  border-radius: 50%;
+  background: var(--button-background);
+  color: var(--button-text);
+}
+
+.icon.shape-square {
+  border-radius: 12px;
+}
+
+.icon.shape-outline {
+  border: 2px solid currentColor;
+  background: transparent;
+  color: var(--text);
+}
+
+button.icon,
+a.icon {
+  cursor: pointer;
+  transition: scale 0.15s, opacity 0.15s;
+}
+
+button.icon:hover,
+a.icon:hover {
+  scale: 1.08;
+}
+
+button.icon:active {
+  scale: 0.96;
+}
+
+.icon:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 3px;
+}
+
+.reduced-motion .icon {
+  transition: none;
+}
+
 .card,
 .infobox {
   display: flex;
@@ -1061,6 +1161,7 @@ button.button {
    Das Skript setzt .is-active auf die gewählte Variante und .is-unavailable auf gesperrte Varianten. */
 
 .button.is-active,
+.icon.is-active,
 .card.is-active,
 .infobox.is-active {
   outline: 3px solid var(--text);

@@ -114,6 +114,12 @@ Schließt Abnahmekriterium 1 ab.
 - Speichern und Exportieren legen am gewählten Ort einen eigenen Ordner an: `<Projektname>` für das Projekt, `<Projektname>-html` und `<Projektname>-astro` für die Exporte
 - Projektformat Version 9
 
+## SVG-Komponente und Bedienelemente (erledigt, Stand 15.11.2026)
+
+- Neue Komponente „SVG“: eigene SVG-Datei oder ein Symbol aus der Bibliothek. Mit einer Aktion ist sie eine Schaltfläche (Animation starten/stoppen, Variante oder Material wählen, Kamera zu einem Hotspot), mit Linkziel ein Link, sonst eine Grafik. Per Tastatur bedienbar, mit Beschriftung für Screenreader
+- Eigene SVG-Dateien werden beim Import bereinigt (keine Skripte, Ereignis-Attribute oder Verweise nach außen) und stehen als Markup im Projekt. Auf Wunsch nimmt die Grafik die gewählte Farbe an
+- Bedienelemente: 37 mitgelieferte Symbole in fünf Gruppen (Wiedergabe, Richtung, Ansicht, Auswahl, Allgemein), als runder oder quadratischer Knopf, mit Umriss oder nur als Symbol. Im Bereich „Elemente“ unter „Bedienelemente“ anklicken oder in den Viewport ziehen
+
 ## Bekannte Grenzen
 
 - Texturen im Format KTX2/Basis werden nicht geladen

@@ -88,7 +88,7 @@ export interface ComponentAnimation {
   out: [number, number] | null;
 }
 
-export type ComponentType = 'headline' | 'text' | 'image' | 'button' | 'card' | 'infobox' | 'select' | 'slider' | 'value' | 'status' | 'connection' | 'instance';
+export type ComponentType = 'headline' | 'text' | 'image' | 'icon' | 'button' | 'card' | 'infobox' | 'select' | 'slider' | 'value' | 'status' | 'connection' | 'instance';
 
 export interface ComponentContent {
   text?: string;
@@ -98,6 +98,12 @@ export interface ComponentContent {
   alt?: string;
   /** Aktion bei Klick, Tap oder Tastendruck */
   action?: ComponentAction | null;
+  /** Nur "icon": SVG-Grafik als Markup, beim Import bereinigt (keine Skripte, keine externen Verweise) */
+  svg?: string;
+  /** Nur "icon": Die Grafik nimmt die Textfarbe an (Füllungen und Konturen werden currentColor) */
+  tint?: boolean;
+  /** Nur "icon": Fläche hinter der Grafik. Standard "plain" (nur die Grafik) */
+  shape?: 'plain' | 'round' | 'square' | 'outline';
 }
 
 export interface Component extends ComponentContent {

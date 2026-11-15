@@ -74,7 +74,7 @@ export function locate(project: Project, id: string): Located | null {
 
 // ---------- Lesen ----------
 
-const CONTENT_KEYS: (keyof ComponentContent)[] = ['text', 'href', 'src', 'alt', 'action'];
+const CONTENT_KEYS: (keyof ComponentContent)[] = ['text', 'href', 'src', 'alt', 'action', 'svg', 'tint', 'shape'];
 
 export function contentOf(located: Located): ComponentContent {
   const content: ComponentContent = {};
@@ -182,7 +182,10 @@ export interface AddTarget {
 }
 
 /** Fügt eine Komponente oder die Instanz einer Vorlage ein und wählt sie aus. */
-export function addComponent(spec: { type: Exclude<ComponentType, 'instance'> } | { templateId: string }, target: AddTarget) {
+/** Was neu angelegt wird: eine Komponente (optional mit vorbelegten Inhalten) oder die Instanz einer Vorlage. */
+export type ComponentSpec = { type: Exclude<ComponentType, 'instance'>; preset?: ComponentContent } | { templateId: string };
+
+export function addComponent(spec: ComponentSpec, target: AddTarget) {
   let created: Component;
   if ('templateId' in spec) {
     created = {
@@ -197,6 +200,7 @@ export function addComponent(spec: { type: Exclude<ComponentType, 'instance'> } 
     };
   } else {
     created = createComponent(spec.type);
+    if (spec.preset) Object.assign(created, structuredClone(spec.preset));
   }
   let selectedId = created.id;
 
@@ -405,6 +409,7 @@ export const COMPONENT_LABELS: Record<ComponentType, string> = {
   headline: 'Headline',
   text: 'Text',
   image: 'Bild',
+  icon: 'SVG',
   button: 'Button',
   card: 'Karte',
   infobox: 'Infobox',

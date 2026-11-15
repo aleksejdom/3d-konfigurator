@@ -22,7 +22,8 @@ import {
   styleInfo,
 } from './components';
 import { BREAKPOINT_LABELS, Field, InheritRow, NumberInput, OptionalNumber } from './fields';
-import { importFont, importImage, useEditor } from './store';
+import { importFont, importImage, importSvg, useEditor } from './store';
+import { ICONS, ICON_SHAPES } from './icons';
 import { FONT_LABELS } from './fonts';
 
 const ANIMATION_LABELS: Record<AnimationType, string> = {
@@ -171,6 +172,60 @@ export function ComponentInspector({ id }: { id: string }) {
           <input placeholder="z. B. #kontakt" value={content.href ?? ''} onChange={(e) => setContent(id, { href: e.target.value }, 'href-' + id)} />
         </Field>
       )}
+      {type === 'icon' && (
+        <>
+          <Field label="Symbol aus der Bibliothek">
+            <select
+              aria-label="Symbol aus der Bibliothek"
+              value={ICONS.find((icon) => icon.svg === content.svg)?.id ?? ''}
+              onChange={(e) => {
+                const icon = ICONS.find((i) => i.id === e.target.value);
+                if (icon) setContent(id, { svg: icon.svg, alt: content.alt || icon.name });
+              }}
+            >
+              <option value="">{content.svg ? 'Eigene Grafik' : 'Bitte wählen'}</option>
+              {ICONS.map((icon) => (
+                <option key={icon.id} value={icon.id}>
+                  {icon.group} · {icon.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="field">
+            <span>Eigene SVG-Datei</span>
+            <div className="row">
+              <button
+                onClick={async () => {
+                  const picked = await importSvg();
+                  if (picked) setContent(id, { svg: picked.svg, alt: content.alt || picked.name });
+                }}
+              >
+                {content.svg ? 'SVG austauschen' : 'SVG wählen'}
+              </button>
+              <small>{content.svg ? `${Math.max(1, Math.round(content.svg.length / 1024))} KB` : 'noch keine Grafik'}</small>
+            </div>
+          </div>
+          <Field label="Form">
+            <select aria-label="Form" value={content.shape ?? 'plain'} onChange={(e) => setContent(id, { shape: e.target.value as typeof content.shape })}>
+              {Object.entries(ICON_SHAPES).map(([key, name]) => (
+                <option key={key} value={key}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Beschriftung (Name der Schaltfläche für Screenreader)">
+            <input placeholder="z. B. Tür öffnen" value={content.alt ?? ''} onChange={(e) => setContent(id, { alt: e.target.value }, 'alt-' + id)} />
+          </Field>
+          <label className="check">
+            <input type="checkbox" checked={content.tint ?? false} onChange={(e) => setContent(id, { tint: e.target.checked })} />
+            Eigene Grafik in der gewählten Farbe einfärben
+          </label>
+          <Field label="Linkziel (nur ohne Aktion)">
+            <input placeholder="z. B. #kontakt" value={content.href ?? ''} onChange={(e) => setContent(id, { href: e.target.value }, 'href-' + id)} />
+          </Field>
+        </>
+      )}
       {type === 'image' && (
         <>
           <div className="field">
@@ -264,12 +319,12 @@ export function ComponentInspector({ id }: { id: string }) {
         </Field>
       )}
 
-      {(type === 'button' || container) && (
+      {(type === 'button' || type === 'icon' || container) && (
         <Field label="Aktion bei Klick">
           <ActionSelect
             label="Aktion bei Klick"
             value={content.action}
-            emptyLabel={type === 'button' ? 'Link öffnen' : 'Keine'}
+            emptyLabel={type === 'button' ? 'Link öffnen' : type === 'icon' ? 'Keine (Link oder nur Grafik)' : 'Keine'}
             onChange={(action) => setContent(id, { action })}
           />
         </Field>
@@ -284,7 +339,7 @@ export function ComponentInspector({ id }: { id: string }) {
           <p className="hint">Abstände sind feste px. Sie bleiben bei jeder Fenstergröße gleich, in Editor, Vorschau und Export.</p>
         </Fold>
       )}
-      {type !== 'image' && (
+      {type !== 'image' && type !== 'icon' && (
         <Fold id="text" title={<>Text · {BREAKPOINT_LABELS[breakpoint]}</>}>
           {style('fontFamily', 'Schrift', (value, _own, set) => (
             <select
@@ -327,7 +382,8 @@ export function ComponentInspector({ id }: { id: string }) {
       {style('visible', 'Sichtbar', (value, _own, set) => (
         <input type="checkbox" aria-label="Sichtbar" checked={value ?? true} onChange={(e) => set(e.target.checked)} />
       ))}
-      {number('width', 'Breite (px)', 20)}
+      {number('width', type === 'icon' ? 'Größe: Breite (px)' : 'Breite (px)', 8)}
+      {type === 'icon' && color('color', 'Farbe des Symbols')}
       {color('background', 'Hintergrund')}
       {number('radius', 'Eckenradius (px)', 0)}
       </Fold>

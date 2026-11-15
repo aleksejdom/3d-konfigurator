@@ -1516,3 +1516,42 @@ button svg {
   color: var(--muted);
   text-decoration: line-through;
 }
+
+.page-frame .icon.placeholder {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 64px;
+  border: 1px dashed var(--muted);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+/* Bedienelemente in der Bibliothek */
+.gui-group {
+  margin-top: 8px;
+}
+
+.gui-group small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.gui-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.gui-grid button {
+  aspect-ratio: 1;
+  padding: 6px;
+  cursor: grab;
+}
+
+.gui-grid svg {
+  width: 100%;
+  height: 100%;
+}

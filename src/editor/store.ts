@@ -21,6 +21,7 @@ import {
   type DirRef,
   type FileMap,
 } from './platform';
+import { sanitizeSvg } from './svg';
 import { clearStageModel, editor, loadIntoStage, tidy, type StateMap } from './stage';
 
 export interface Snapshot {
@@ -390,6 +391,19 @@ export async function importImage(): Promise<string | null> {
   if (!file) return null;
   addAsset(file.name, file.data);
   return file.name;
+}
+
+/** SVG-Datei wählen. Liefert das bereinigte Markup und den Dateinamen ohne Endung. */
+export async function importSvg(): Promise<{ svg: string; name: string } | null> {
+  const file = await pickFile(['svg'], 'SVG-Grafik');
+  if (!file) return null;
+  const svg = sanitizeSvg(new TextDecoder().decode(file.data));
+  if (!svg) {
+    notify(`${file.name} ist keine gültige SVG-Datei.`);
+    return null;
+  }
+  if (svg.length > 200_000) notify('Die SVG-Datei ist groß. Sie steht als Text im Projekt und in der Seite; für Fotos eignet sich die Komponente „Bild“ besser.');
+  return { svg, name: file.name.replace(/\.svg$/i, '').replace(/[-_]+/g, ' ') };
 }
 
 /** Schriftdatei ins Projekt aufnehmen. Liefert die Auswahl-ID "font:<ID>". */

@@ -29,6 +29,7 @@ export function createComponent(type: Exclude<ComponentType, 'instance'>, text?:
   if (type in DEFAULT_TEXT) component.text = text ?? DEFAULT_TEXT[type];
   if (type === 'button') component.href = '#';
   if (type === 'image') component.alt = '';
+  if (type === 'icon') component.alt = '';
   if (type === 'card') {
     component.children = [
       createComponent('headline', 'Kartentitel'),
