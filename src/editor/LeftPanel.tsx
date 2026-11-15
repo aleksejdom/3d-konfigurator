@@ -18,6 +18,8 @@ import {
   FolderPlus,
   Lightbulb,
   Pencil,
+  Trash2,
+  Undo2,
   Ungroup,
   Ruler,
   Type,
@@ -35,7 +37,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { LightList } from './LightPanels';
-import { createGroup, currentParent, isInside, renameGroup, setParent, ungroup } from './hierarchy';
+import { createGroup, currentParent, isInside, removeNodes, renameGroup, restoreNode, setParent, ungroup } from './hierarchy';
 import { FONT_LABELS } from './fonts';
 import { Field, NumberInput } from './fields';
 import { SHOW_ALL } from './Block';
@@ -205,6 +207,7 @@ function readTree(): TreeNode | null {
   return { id: 'model', kind: 'model', children: collect(stage.model) };
 }
 
+const NO_NODES: string[] = [];
 const TREE_ICON = { model: Box, group: Folder, mesh: Cuboid, empty: CircleDashed };
 
 function SceneTree() {
@@ -212,6 +215,7 @@ function SceneTree() {
   const treeVersion = useEditor((s) => s.treeVersion);
   const selected = useEditor((s) => s.selectedNode);
   const tree = useMemo(readTree, [modelVersion, treeVersion]);
+  const removed = useEditor((s) => s.project.hierarchy.removed) ?? NO_NODES;
   /** Weitere mit Strg- oder Umschalt-Klick gewählte Bauteile, zum Gruppieren */
   const [picked, setPicked] = useState<string[]>([]);
   const [closed, setClosed] = useState<Set<string>>(() => new Set());
@@ -233,6 +237,20 @@ function SceneTree() {
     if (!next.delete(id)) next.add(id);
     setClosed(next);
   };
+
+  // Entf löscht die gewählten Bauteile, solange kein Element der Seite ausgewählt ist und nicht getippt wird.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' || (event.target as HTMLElement).closest('input, textarea, select')) return;
+      const state = useEditor.getState();
+      // Ein einzelnes ausgewähltes Bauteil löscht der Viewport, auch wenn dieser Bereich nicht offen ist.
+      if (state.selectedComponent || state.selectedLight || state.selectedHotspot || picked.length === 0) return;
+      removeNodes(chosen);
+      setPicked([]);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   let rows = 0;
   const render = (node: TreeNode, depth: number): React.ReactNode => {
@@ -313,6 +331,16 @@ function SceneTree() {
               </button>
             </>
           )}
+          {node.id !== 'model' && renaming !== node.id && (
+            <button
+              className="tree-action"
+              onClick={() => removeNodes(chosen.includes(node.id) ? chosen : [node.id])}
+              aria-label={`${nodeName(node.id)} löschen`}
+              title={node.children.length > 0 ? 'Löschen, samt allem darunter (Entf)' : 'Löschen (Entf)'}
+            >
+              <Trash2 size={13} aria-hidden />
+            </button>
+          )}
         </div>
         {node.children.length > 0 && open && <ul role="group">{node.children.map((child) => render(child, depth + 1))}</ul>}
       </li>
@@ -342,9 +370,26 @@ function SceneTree() {
           „{nodeName(selected!)}“ eine Ebene nach oben
         </button>
       )}
+      {removed.length > 0 && (
+        <Fold id="removed" title={`Gelöschte Bauteile (${removed.length})`} closed>
+          <ul className="list">
+            {removed.map((id) => (
+              <li key={id}>
+                <span className="list-main removed-name" title={id}>
+                  {nodeName(id)}
+                </span>
+                <button onClick={() => restoreNode(id)} aria-label={`${nodeName(id)} wiederherstellen`} title="Wiederherstellen">
+                  <Undo2 size={13} aria-hidden />
+                  Zurückholen
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Fold>
+      )}
       <p className="hint">
         Bauteil auf ein anderes ziehen: Es wird dessen Kind und folgt seiner Bewegung und Drehung. Mehrere Bauteile wählst du mit
-        Strg- oder Umschalt-Klick und fasst sie mit „Gruppieren“ zusammen.
+        Strg- oder Umschalt-Klick und fasst sie mit „Gruppieren“ zusammen. Entf oder der Papierkorb löscht ein Bauteil.
       </p>
     </Block>
   );

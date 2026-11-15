@@ -1511,3 +1511,8 @@ button svg {
   flex: 1;
   min-width: 0;
 }
+
+.removed-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}

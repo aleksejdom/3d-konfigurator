@@ -90,7 +90,7 @@ export function parentId(object) {
  * @param {import('./types').Hierarchy | undefined} hierarchy
  */
 export function applyHierarchy(stage, hierarchy) {
-  const { groups = [], parents = {} } = hierarchy || {};
+  const { groups = [], parents = {}, removed = [] } = hierarchy || {};
   if (!stage.originals) {
     stage.originals = new Map();
     for (const [id, object] of stage.nodes) {
@@ -137,6 +137,13 @@ export function applyHierarchy(stage, hierarchy) {
     const target = stage.nodes.get(targetId);
     if (!child || !target || child === stage.model || inside(target, child)) continue;
     target.attach(child);
+  }
+
+  // 4. Gelöschte Bauteile aus der Szene nehmen, samt allem, was darunter hängt.
+  // Sie bleiben in stage.nodes, damit Verweise (Hotspots, Varianten) ins Leere laufen statt zu scheitern.
+  for (const id of removed) {
+    const object = stage.nodes.get(id);
+    if (object && object !== stage.model) object.removeFromParent();
   }
   stage.model.updateMatrixWorld(true);
 }

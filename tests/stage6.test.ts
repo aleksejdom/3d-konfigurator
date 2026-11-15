@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { applyState, lightDefaults, lightProps, readProp, syncLights, updateClips } from '../src/core/stage.js';
+import { applyHierarchy, applyState, lightDefaults, lightProps, readProp, syncLights, updateClips } from '../src/core/stage.js';
 import { renderLoader } from '../src/export/page.js';
 import { bindComponents } from '../src/core/components.js';
 import { evaluate } from '../src/core/timeline.js';
@@ -190,5 +190,30 @@ describe('Ladeanzeige', () => {
     expect(renderLoader(project)).toBe('');
     project.settings.loader = 'bar';
     expect(buildExport(project, 'vanilla', {}).files['index.html']).toContain('loader-track-bar');
+  });
+});
+
+describe('Bauteile löschen', () => {
+  it('nimmt gelöschte Bauteile samt Kindern aus der Szene und holt sie zurück', () => {
+    const model = new THREE.Group();
+    model.name = 'model';
+    const body = new THREE.Group();
+    const lid = new THREE.Mesh();
+    const knob = new THREE.Mesh();
+    model.add(body);
+    body.add(lid, knob);
+    lid.position.set(0, 1, 0);
+    const stage = { model, nodes: new Map<string, THREE.Object3D>([['model', model], ['Body', body], ['Body/Lid', lid], ['Body/Knob', knob]]), originals: null, groups: new Map() } as never as Parameters<typeof applyHierarchy>[0];
+    applyHierarchy(stage, { groups: [{ id: 'g', name: 'Gruppe', parent: 'Body', position: [0, 0, 0] }], parents: { 'Body/Knob': 'g' }, removed: ['Body/Lid', 'g'] });
+    expect(lid.parent).toBeNull();
+    expect(body.children).toEqual([]);
+    // Ohne den Eintrag sind Deckel und Gruppe wieder da, an ihrem Platz.
+    applyHierarchy(stage, { groups: [{ id: 'g', name: 'Gruppe', parent: 'Body', position: [0, 0, 0] }], parents: { 'Body/Knob': 'g' }, removed: [] });
+    expect(lid.parent).toBe(body);
+    expect(lid.position.toArray()).toEqual([0, 1, 0]);
+    expect(knob.parent?.userData.nodeId).toBe('g');
+    // Das Modell selbst lässt sich nicht löschen.
+    applyHierarchy(stage, { groups: [], parents: {}, removed: ['model'] });
+    expect(body.parent).toBe(model);
   });
 });

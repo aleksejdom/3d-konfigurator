@@ -15,7 +15,7 @@ import { positionHotspots } from '../core/interaction.js';
 import { renderCss, renderFontFaces, renderFreeLayer, renderHotspotLayer, renderSections } from '../export/page.js';
 import { addComponent, effectiveStyle, locate, removeComponent, setStyle, setStyles } from './components';
 import { addHotspot } from './interactions';
-import { syncHierarchy } from './hierarchy';
+import { removeNodes, syncHierarchy } from './hierarchy';
 import { SCOPE_LABELS, lastScope, posLabel, propGroups } from './labels';
 import { currentState, editor, sameValue } from './stage';
 import { discardDraft, importModel, loadSampleModel, merken, notify, selectComponent, selectedComponents, setDraft, setSceneValue, useEditor } from './store';
@@ -272,6 +272,18 @@ export function Viewport() {
       cancelled = true;
     };
   }, [environmentFile, environmentUrl]);
+
+  // Entf löscht das ausgewählte Bauteil des Modells.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' || (event.target as HTMLElement).closest('input, textarea, select')) return;
+      const state = useEditor.getState();
+      if (state.selectedComponent || state.selectedLight || state.selectedHotspot || !state.selectedNode) return;
+      removeNodes([state.selectedNode]);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Hilfsfiguren für die Lichter: zeigen Ort, Richtung und Kegel bzw. Fläche. Nur im Editor.
   const lightIds = project.lights.map((light) => light.id + light.type).join(' ');

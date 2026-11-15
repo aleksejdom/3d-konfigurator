@@ -74,7 +74,7 @@ export function createProject(): Project {
     templates: [],
     fonts: [],
     lights: [],
-    hierarchy: { groups: [], parents: {} },
+    hierarchy: { groups: [], parents: {}, removed: [] },
     hotspots: [],
     lookAts: [],
     follows: [],
@@ -165,7 +165,7 @@ export function migrateProject(data: unknown): Project {
     fonts: raw.fonts ?? [],
     lights: raw.lights ?? [],
     // Seit Version 9
-    hierarchy: { groups: raw.hierarchy?.groups ?? [], parents: raw.hierarchy?.parents ?? {} },
+    hierarchy: { groups: raw.hierarchy?.groups ?? [], parents: raw.hierarchy?.parents ?? {}, removed: raw.hierarchy?.removed ?? [] },
     // Seit Version 3
     hotspots: raw.hotspots ?? [],
     lookAts: raw.lookAts ?? [],

@@ -424,6 +424,11 @@ export interface Hierarchy {
   groups: NodeGroup[];
   /** Umgehängte Bauteile: ID des Bauteils -> ID des neuen Elternteils (Bauteil, Gruppe oder "model") */
   parents: Record<string, string>;
+  /**
+   * Im Editor gelöschte Bauteile und Gruppen. Sie und ihre Kinder werden nicht angezeigt.
+   * Die Modelldatei bleibt unverändert, deshalb lässt sich das Löschen zurücknehmen.
+   */
+  removed?: string[];
 }
 
 /** Seitenbreite und Inhaltsbereich. Texte und frei platzierte Elemente richten sich am Inhaltsbereich aus. */

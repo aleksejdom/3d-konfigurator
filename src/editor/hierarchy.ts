@@ -168,6 +168,28 @@ export function ungroup(id: string) {
   if (useEditor.getState().selectedNode === id) useEditor.setState({ selectedNode: null });
 }
 
+/** Löscht Bauteile oder Gruppen aus der Szene, samt allem, was darunter hängt. Die Modelldatei bleibt unverändert. */
+export function removeNodes(ids: string[]) {
+  const stage = editor.stage;
+  const gone = useEditor.getState().project.hierarchy.removed ?? [];
+  const targets = ids.filter((id, i) => id !== 'model' && stage?.nodes.has(id) && !gone.includes(id) && ids.indexOf(id) === i);
+  if (targets.length === 0) return;
+  commit((hierarchy) => {
+    hierarchy.removed = [...new Set([...(hierarchy.removed ?? []), ...targets])];
+  });
+  if (targets.includes(useEditor.getState().selectedNode ?? '')) useEditor.setState({ selectedNode: null });
+  notify(targets.length === 1 ? `„${nodeNameOf(targets[0])}“ gelöscht. Rückgängig mit Strg+Z oder unter „Gelöschte Bauteile“.` : `${targets.length} Bauteile gelöscht. Rückgängig mit Strg+Z oder unter „Gelöschte Bauteile“.`);
+}
+
+/** Holt ein gelöschtes Bauteil zurück. */
+export function restoreNode(id: string) {
+  commit((hierarchy) => {
+    hierarchy.removed = (hierarchy.removed ?? []).filter((other) => other !== id);
+  });
+}
+
+const nodeNameOf = (id: string) => groupNames.get(id) ?? id.split('/').pop()!;
+
 export function renameGroup(id: string, name: string) {
   const next = name.trim();
   if (!next) return;

@@ -110,12 +110,14 @@ Schließt Abnahmekriterium 1 ab.
 - Bauteile gruppieren: im Bereich „Modell“ unter „Szene“ mehrere Bauteile mit Strg- oder Umschalt-Klick wählen und „Gruppieren“. Die Gruppe ist selbst ein Bauteil mit Drehpunkt in der Mitte ihrer Bauteile; sie lässt sich bewegen, drehen, skalieren und pro Abschnitt merken
 - Eltern-Kind-Beziehungen: Ein Bauteil auf ein anderes ziehen macht es zu dessen Kind. Kinder folgen Bewegung, Drehung und Skalierung des Elternteils. Bauteile behalten beim Umhängen ihren Platz. Gilt in Editor, Vorschau und Export
 - Szenenbaum mit Einrückung, Führungslinien, Symbolen je Art, Anzahl der Kinder, Auf- und Zuklappen; Gruppen umbenennen und auflösen
+- Bauteile löschen (Stand 15.11.2026): Papierkorb im Szenenbaum oder Entf. Das Bauteil verschwindet samt allem darunter aus Editor, Vorschau und Export. Unter „Gelöschte Bauteile“ lässt es sich zurückholen
 - Speichern und Exportieren legen am gewählten Ort einen eigenen Ordner an: `<Projektname>` für das Projekt, `<Projektname>-html` und `<Projektname>-astro` für die Exporte
 - Projektformat Version 9
 
 ## Bekannte Grenzen
 
 - Texturen im Format KTX2/Basis werden nicht geladen
+- Gelöschte Bauteile werden nur ausgeblendet. Die Modelldatei bleibt unverändert, der Export wird dadurch nicht kleiner
 - Für ein Bauteil gemerkte Positionen zählen nach dem Umhängen ab dem neuen Elternteil und müssen neu gemerkt werden; der Editor weist darauf hin
 - Beim erneuten Export in denselben Ordner bleiben Dateien stehen, die der neue Export nicht mehr enthält
 - Zusätzliche Lichter werfen keine Schatten. Flächenlichter wirken nur auf Standard- und Physical-Materialien
