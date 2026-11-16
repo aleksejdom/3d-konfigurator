@@ -120,9 +120,17 @@ Schließt Abnahmekriterium 1 ab.
 - Eigene SVG-Dateien werden beim Import bereinigt (keine Skripte, Ereignis-Attribute oder Verweise nach außen) und stehen als Markup im Projekt. Auf Wunsch nimmt die Grafik die gewählte Farbe an
 - Bedienelemente: 37 mitgelieferte Symbole in fünf Gruppen (Wiedergabe, Richtung, Ansicht, Auswahl, Allgemein), als runder oder quadratischer Knopf, mit Umriss oder nur als Symbol. Im Bereich „Elemente“ unter „Bedienelemente“ anklicken oder in den Viewport ziehen
 
+## Freies Drehen durch den Besucher (erledigt, Stand 16.11.2026)
+
+- Pro Abschnitt einstellbar (rechts unter „Abschnitt“): Der Besucher zieht das Modell mit Maus oder Finger, seitlich oder frei mit Neigen
+- Die Drehung liegt über der Kamera der Timeline. Im letzten Teil des Abschnitts nimmt sie mit dem Scrollen ab; der nächste Abschnitt beginnt genau bei seiner gemerkten Ansicht. Zurückgescrollt beginnt der Abschnitt wieder bei der vorgegebenen Ansicht
+- Auf Touch-Geräten dreht waagerechtes Wischen, senkrechtes scrollt. Schaltflächen, Hotspots und Klicks auf Bauteile bleiben bedienbar; nach einem Drehen folgt kein Klick
+- Wirkt in Vorschau und Export. Im Editor-Viewport dreht die Maus weiterhin die Arbeitsansicht
+
 ## Bekannte Grenzen
 
 - Texturen im Format KTX2/Basis werden nicht geladen
+- Freies Drehen kennt kein Zoomen, weil das Mausrad und zwei Finger dem Scrollen der Seite gehören
 - Gelöschte Bauteile werden nur ausgeblendet. Die Modelldatei bleibt unverändert, der Export wird dadurch nicht kleiner
 - Für ein Bauteil gemerkte Positionen zählen nach dem Umhängen ab dem neuen Elternteil und müssen neu gemerkt werden; der Editor weist darauf hin
 - Beim erneuten Export in denselben Ordner bleiben Dateien stehen, die der neue Export nicht mehr enthält

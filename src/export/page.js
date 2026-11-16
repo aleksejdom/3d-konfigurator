@@ -578,6 +578,19 @@ export function renderCss(project) {
   opacity: 0;
 }
 
+/* Freies Drehen: Zeiger zeigt, dass sich das Modell ziehen lässt. Waagerechtes Wischen dreht, senkrechtes scrollt. */
+.can-orbit .page,
+.can-orbit .section {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.can-orbit.is-orbiting,
+.can-orbit.is-orbiting * {
+  cursor: grabbing;
+  user-select: none;
+}
+
 /* ---------- Ladeanzeige ---------- */
 
 .loader {

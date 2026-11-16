@@ -351,6 +351,12 @@ export interface Section {
    * clip "*" = alle Clips des Modells.
    */
   clips?: SectionClip[];
+  /**
+   * Der Besucher darf das Modell in diesem Abschnitt mit Maus oder Finger drehen:
+   * "horizontal" nur um die Hochachse, "free" zusätzlich neigen. Zum Ende des Abschnitts kehrt die Ansicht
+   * mit dem Scrollen zur Timeline zurück, der nächste Abschnitt beginnt bei seiner vorgegebenen Ansicht.
+   */
+  orbit?: 'horizontal' | 'free';
 }
 
 export interface ModelStats {

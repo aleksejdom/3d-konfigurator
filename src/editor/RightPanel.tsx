@@ -167,6 +167,24 @@ function SectionEditor({ section }: { section: Section }) {
           <option value="right">Rechts</option>
         </select>
       </Field>
+      <Field label="Besucher darf das Modell drehen">
+        <select
+          aria-label="Besucher darf das Modell drehen"
+          value={section.orbit ?? ''}
+          onChange={(e) => patch((s) => void (e.target.value ? (s.orbit = e.target.value as Section['orbit']) : delete s.orbit))}
+        >
+          <option value="">Nein, die Ansicht folgt nur dem Scrollen</option>
+          <option value="horizontal">Ja, seitlich drehen</option>
+          <option value="free">Ja, frei drehen und neigen</option>
+        </select>
+      </Field>
+      {section.orbit && (
+        <p className="hint">
+          In Vorschau und Export zieht der Besucher das Modell mit Maus oder Finger. Im letzten Teil des Abschnitts kehrt die Ansicht mit dem
+          Scrollen zurück, der nächste Abschnitt beginnt bei seiner gemerkten Ansicht. Auf Touch-Geräten dreht waagerechtes Wischen,
+          senkrechtes scrollt.
+        </p>
+      )}
       {clips.length > 0 && (
         <>
           <Fold id="section-clips" title="Animation des Modells in diesem Abschnitt">

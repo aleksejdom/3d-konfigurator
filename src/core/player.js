@@ -8,6 +8,7 @@ import { evaluate } from './timeline.js';
 import { measureSections, scrollToPos } from './scroll.js';
 import { bindComponents, breakpointFor, resolveFraming } from './components.js';
 import { createInteraction } from './interaction.js';
+import { createOrbit } from './orbit.js';
 import { createConfigurator } from './configurator.js';
 import { createDataBindings } from './data.js';
 import { applyEnvironment, applyFraming, applyHierarchy, applyState, createStage, loadEnvironment, loadModel, renderStage, resizeStage, syncLights } from './stage.js';
@@ -123,6 +124,8 @@ export async function startPlayer({
     pinned: project.settings.textMode !== 'flow',
   });
   let breakpoint = 'desktop';
+  // Vor den anderen Zeiger-Auswertungen anmelden: Nach einem Drehen soll kein Klick auf ein Bauteil folgen.
+  const orbit = createOrbit({ stage, project, root: document, reduced });
   const interaction = createInteraction({ stage, project, root: document, canvas, getBreakpoint: () => breakpoint, reduced });
   const configurator = createConfigurator({
     stage,
@@ -176,10 +179,12 @@ export async function startPlayer({
     }
     // Mit Hotspots, Look At oder Follow wird jedes Bild neu gerechnet, sonst nur nach dem Scrollen,
     // nach einer Wahl im Konfigurator oder solange ein Animationsclip läuft.
-    if (needsRender || interaction.live || configurator.live || data.live) {
+    if (needsRender || interaction.live || configurator.live || data.live || orbit.live) {
       needsRender = false;
       interaction.reset();
       applyState(stage, evaluate(project, currentPos));
+      // Freies Drehen des Besuchers liegt über der Kamera der Timeline.
+      orbit.update(currentPos, dt);
       data.update(dt);
       configurator.update(dt, currentPos);
       interaction.update(dt, currentPos);
