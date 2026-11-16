@@ -179,10 +179,34 @@ function SectionEditor({ section }: { section: Section }) {
         </select>
       </Field>
       {section.orbit && (
+        <div className="field">
+          <span>Zoom des Besuchers: kleinster und größter (× gemerkte Ansicht)</span>
+          <div className="vector two">
+            <NumberInput
+              label="Kleinster Zoom"
+              value={section.orbitZoom?.min ?? 1}
+              min={0.1}
+              max={1}
+              step={0.1}
+              onChange={(n) => patch((s) => void (s.orbitZoom = { min: Math.min(1, Math.max(0.1, n)), max: s.orbitZoom?.max ?? 2 }), 'sec-zoom-min')}
+            />
+            <NumberInput
+              label="Größter Zoom"
+              value={section.orbitZoom?.max ?? 2}
+              min={1}
+              max={20}
+              step={0.25}
+              onChange={(n) => patch((s) => void (s.orbitZoom = { min: s.orbitZoom?.min ?? 1, max: Math.min(20, Math.max(1, n)) }), 'sec-zoom-max')}
+            />
+          </div>
+        </div>
+      )}
+      {section.orbit && (
         <p className="hint">
           In Vorschau und Export zieht der Besucher das Modell mit Maus oder Finger. Im letzten Teil des Abschnitts kehrt die Ansicht mit dem
           Scrollen zurück, der nächste Abschnitt beginnt bei seiner gemerkten Ansicht. Auf Touch-Geräten dreht waagerechtes Wischen,
-          senkrechtes scrollt.
+          senkrechtes scrollt. Gezoomt wird mit zwei Fingern, mit Strg + Mausrad oder über Schaltflächen mit der Aktion „Näher heran“ und
+          „Weiter weg“. 1 und 1 schaltet das Zoomen ab.
         </p>
       )}
       {clips.length > 0 && (

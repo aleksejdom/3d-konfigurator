@@ -148,7 +148,9 @@ export type ComponentAction =
   /** Auswahl des Besuchers verwerfen und an die Timeline zurückgeben. groupId null = alle Gruppen */
   | { type: 'reset'; groupId: string | null }
   /** Animationsclip des Modells starten, stoppen oder umschalten */
-  | { type: 'clip'; clip: string; mode: 'play' | 'stop' | 'toggle' };
+  | { type: 'clip'; clip: string; mode: 'play' | 'stop' | 'toggle' }
+  /** In Abschnitten mit freiem Drehen: näher heran, weiter weg oder zurück zur gemerkten Ansicht */
+  | { type: 'zoom'; mode: 'in' | 'out' | 'reset' };
 
 /** Eine Vorlage liefert Aufbau und Gestaltung. Instanzen bringen eigene Inhalte und ihre Position mit. */
 export interface Template {
@@ -357,6 +359,11 @@ export interface Section {
    * mit dem Scrollen zur Timeline zurück, der nächste Abschnitt beginnt bei seiner vorgegebenen Ansicht.
    */
   orbit?: 'horizontal' | 'free';
+  /**
+   * Grenzen für das Zoomen beim freien Drehen, als Faktor gegenüber der gemerkten Ansicht:
+   * min 0.5 = bis zur halben Größe weg, max 3 = bis zur dreifachen Größe heran. Standard min 1, max 2.
+   */
+  orbitZoom?: { min: number; max: number };
 }
 
 export interface ModelStats {

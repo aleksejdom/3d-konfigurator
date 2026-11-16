@@ -41,6 +41,13 @@ export function ActionSelect(props: { value: ComponentAction | null | undefined;
         </optgroup>
       ))}
       {project.variantGroups.length > 1 && <option value="reset:*">Alle Auswahlen zurücksetzen</option>}
+      {project.sections.some((section) => section.orbit) && (
+        <optgroup label="Ansicht (freies Drehen)">
+          <option value="zoom:in">Näher heran</option>
+          <option value="zoom:out">Weiter weg</option>
+          <option value="zoom:reset">Ansicht zurücksetzen</option>
+        </optgroup>
+      )}
       {clips.length > 0 && (
         <optgroup label="Animation">
           {clips.flatMap((clip) => [

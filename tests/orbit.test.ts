@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ORBIT_RELEASE, createOrbit, orbitPosition, orbitWeight } from '../src/core/orbit.js';
+import { ORBIT_RELEASE, createOrbit, orbitPosition, orbitWeight, zoomLimits } from '../src/core/orbit.js';
+import { actionToString, parseAction } from '../src/core/actions.js';
 import { createProject } from '../src/editor/project';
 
 /** Kleine Nachbildung eines Dokuments: merkt sich die angemeldeten Ereignisse. */
@@ -12,13 +13,14 @@ function fakeRoot() {
     addEventListener: (type: string, handler: (event: Record<string, unknown>) => void) => (handlers[type] = handler),
     removeEventListener: () => {},
   };
-  const fire = (type: string, x: number, y: number, extra = {}) => handlers[type]?.({ pointerId: 1, button: 0, clientX: x, clientY: y, pointerType: 'mouse', target: {}, stopPropagation() {}, preventDefault() {}, ...extra });
+  const fire = (type: string, x: number, y: number, extra = {}) => handlers[type]?.({ deltaY: 0, pointerId: 1, button: 0, clientX: x, clientY: y, pointerType: 'mouse', target: {}, stopPropagation() {}, preventDefault() {}, ...extra });
   return { root: root as never, fire, classes };
 }
 
-function setup(orbit: 'horizontal' | 'free' | undefined) {
+function setup(orbit: 'horizontal' | 'free' | undefined, zoom?: { min: number; max: number }) {
   const project = createProject();
   if (orbit) project.sections[0].orbit = orbit;
+  if (zoom) project.sections[0].orbitZoom = zoom;
   const stage = { camera: new THREE.PerspectiveCamera(), target: new THREE.Vector3(0, 0, 0) };
   const env = fakeRoot();
   const control = createOrbit({ stage, project, root: env.root, reduced: true });
@@ -93,5 +95,62 @@ describe('Freies Drehen durch den Besucher', () => {
     fire('pointerdown', 100, 100, { pointerType: 'touch' });
     fire('pointermove', 220, 110, { pointerType: 'touch' });
     expect(frame(0.1)[0]).not.toBe(0);
+  });
+});
+
+describe('Zoom beim freien Drehen', () => {
+  const distance = (position: number[]) => Math.round(Math.hypot(...position) * 1000) / 1000;
+  const zoomButton = (mode: string) => ({ target: { closest: (selector: string) => (selector.includes('zoom') ? { dataset: { action: 'zoom:' + mode } } : null) } });
+
+  it('hat Standardgrenzen und hält eingestellte Grenzen in einem sinnvollen Bereich', () => {
+    expect(zoomLimits(undefined)).toEqual({ min: 1, max: 2 });
+    expect(zoomLimits({ orbitZoom: { min: 0.5, max: 4 } } as never)).toEqual({ min: 0.5, max: 4 });
+    expect(zoomLimits({ orbitZoom: { min: 3, max: 0.2 } } as never)).toEqual({ min: 1, max: 1 });
+  });
+
+  it('zoomt mit Strg + Mausrad bis zur größten und kleinsten Stufe, das Mausrad allein scrollt', () => {
+    const { fire, frame } = setup('free', { min: 0.5, max: 4 });
+    frame(0.1);
+    fire('wheel', 0, 0, { deltaY: -500 });
+    expect(distance(frame(0.1))).toBe(5); // ohne Strg bleibt die Ansicht
+    for (let i = 0; i < 10; i++) fire('wheel', 0, 0, { deltaY: -100, ctrlKey: true });
+    expect(distance(frame(0.1))).toBe(1.25); // 5 / 4
+    for (let i = 0; i < 30; i++) fire('wheel', 0, 0, { deltaY: 100, ctrlKey: true });
+    expect(distance(frame(0.1))).toBe(10); // 5 / 0.5
+  });
+
+  it('zoomt über Schaltflächen und setzt die Ansicht zurück', () => {
+    const { fire, frame } = setup('horizontal');
+    frame(0.1);
+    fire('click', 0, 0, zoomButton('in'));
+    expect(distance(frame(0.1))).toBeCloseTo(5 / 1.35, 2);
+    fire('click', 0, 0, zoomButton('in'));
+    fire('click', 0, 0, zoomButton('in'));
+    expect(distance(frame(0.1))).toBe(2.5); // Standardgrenze: doppelte Größe
+    fire('click', 0, 0, zoomButton('out'));
+    fire('click', 0, 0, zoomButton('out'));
+    fire('click', 0, 0, zoomButton('out'));
+    expect(distance(frame(0.1))).toBe(5); // nicht weiter weg als gemerkt
+    fire('click', 0, 0, zoomButton('in'));
+    fire('click', 0, 0, zoomButton('reset'));
+    expect(frame(0.1)).toEqual([0, 0, 5]);
+  });
+
+  it('zoomt mit zwei Fingern und gibt den Zoom zum Ende des Abschnitts zurück', () => {
+    const { fire, frame } = setup('free', { min: 1, max: 3 });
+    frame(0.1);
+    fire('pointerdown', 100, 100, { pointerType: 'touch', pointerId: 1 });
+    fire('pointerdown', 200, 100, { pointerType: 'touch', pointerId: 2 });
+    fire('pointermove', 300, 100, { pointerType: 'touch', pointerId: 2 });
+    expect(distance(frame(0.1))).toBe(2.5); // Finger doppelt so weit auseinander
+    fire('pointerup', 300, 100, { pointerType: 'touch', pointerId: 2 });
+    fire('pointerup', 100, 100, { pointerType: 'touch', pointerId: 1 });
+    expect(distance(frame(0.9))).toBeGreaterThan(2.5);
+    expect(distance(frame(1.1))).toBe(5);
+  });
+
+  it('steht als Aktion im HTML', () => {
+    expect(actionToString({ type: 'zoom', mode: 'in' })).toBe('zoom:in');
+    expect(parseAction('zoom:reset')).toEqual({ type: 'zoom', mode: 'reset' });
   });
 });

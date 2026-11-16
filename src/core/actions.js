@@ -23,6 +23,8 @@ export function actionToString(action) {
       return 'reset:' + (action.groupId || '*');
     case 'clip':
       return `clip:${action.mode}:${action.clip}`;
+    case 'zoom':
+      return 'zoom:' + action.mode;
     default:
       return '';
   }
@@ -36,6 +38,8 @@ export function parseAction(text) {
   const type = text.slice(0, colon);
   const rest = text.slice(colon + 1);
   if (type === 'hotspot') return { type, hotspotId: rest };
+  // Zoomen im freien Drehen übernimmt orbit.js.
+  if (type === 'zoom') return { type, mode: rest };
   if (type === 'next' || type === 'prev') return { type, groupId: rest };
   if (type === 'reset') return { type, groupId: rest === '*' ? null : rest };
   if (type === 'select') {

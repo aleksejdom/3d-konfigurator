@@ -125,12 +125,12 @@ Schließt Abnahmekriterium 1 ab.
 - Pro Abschnitt einstellbar (rechts unter „Abschnitt“): Der Besucher zieht das Modell mit Maus oder Finger, seitlich oder frei mit Neigen
 - Die Drehung liegt über der Kamera der Timeline. Im letzten Teil des Abschnitts nimmt sie mit dem Scrollen ab; der nächste Abschnitt beginnt genau bei seiner gemerkten Ansicht. Zurückgescrollt beginnt der Abschnitt wieder bei der vorgegebenen Ansicht
 - Auf Touch-Geräten dreht waagerechtes Wischen, senkrechtes scrollt. Schaltflächen, Hotspots und Klicks auf Bauteile bleiben bedienbar; nach einem Drehen folgt kein Klick
+- Zoom mit Grenzen pro Abschnitt: kleinster und größter Zoom als Faktor der gemerkten Ansicht (Standard 1 bis 2). Gezoomt wird mit zwei Fingern, mit Strg + Mausrad (auch Spreizgeste auf dem Trackpad) oder über Schaltflächen mit den Aktionen „Näher heran“, „Weiter weg“ und „Ansicht zurücksetzen“. Das Mausrad allein scrollt weiter die Seite
 - Wirkt in Vorschau und Export. Im Editor-Viewport dreht die Maus weiterhin die Arbeitsansicht
 
 ## Bekannte Grenzen
 
 - Texturen im Format KTX2/Basis werden nicht geladen
-- Freies Drehen kennt kein Zoomen, weil das Mausrad und zwei Finger dem Scrollen der Seite gehören
 - Gelöschte Bauteile werden nur ausgeblendet. Die Modelldatei bleibt unverändert, der Export wird dadurch nicht kleiner
 - Für ein Bauteil gemerkte Positionen zählen nach dem Umhängen ab dem neuen Elternteil und müssen neu gemerkt werden; der Editor weist darauf hin
 - Beim erneuten Export in denselben Ordner bleiben Dateien stehen, die der neue Export nicht mehr enthält
